@@ -1,0 +1,77 @@
+import { writeFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import type { GitLabContext } from './types';
+
+interface McpServerConfig {
+  command: string;
+  args: string[];
+  env: Record<string, string | undefined>;
+}
+
+interface McpConfig {
+  mcpServers: Record<string, McpServerConfig>;
+}
+
+export function prepareMcpConfig(
+  context: GitLabContext,
+  claudeCommentId: string
+): void {
+  // Create MCP configuration
+  const mcpConfig: McpConfig = {
+    mcpServers: {
+      gitlab_comment: {
+        command: "bun",
+        args: [
+          "run",
+          join(__dirname, "mcp", "gitlab-comment-server.ts")
+        ],
+        env: {
+          GITLAB_TOKEN: context.token,
+          GITLAB_PROJECT_ID: context.projectId,
+          GITLAB_API_URL: context.apiUrl,
+          CLAUDE_COMMENT_ID: claudeCommentId,
+          GITLAB_IS_MR: context.isMR ? 'true' : 'false',
+          GITLAB_IID: context.iid.toString()
+        }
+      }
+    }
+  };
+
+  // Check if user has additional MCP config
+  const additionalMcpConfig = process.env.CLAUDE_ADDITIONAL_MCP_CONFIG;
+  if (additionalMcpConfig && additionalMcpConfig.trim()) {
+    try {
+      const additionalConfig = JSON.parse(additionalMcpConfig);
+      
+      // Validate that parsed JSON is an object
+      if (typeof additionalConfig !== "object" || additionalConfig === null) {
+        throw new Error("MCP config must be a valid JSON object");
+      }
+
+      console.log("Merging additional MCP server configuration with built-in servers");
+      
+      // Merge mcpServers if present
+      if (additionalConfig.mcpServers && typeof additionalConfig.mcpServers === "object") {
+        mcpConfig.mcpServers = {
+          ...mcpConfig.mcpServers,
+          ...additionalConfig.mcpServers,
+        };
+      }
+    } catch (error) {
+      console.error(`Error parsing additional MCP config: ${error}`);
+      throw new Error(`Invalid CLAUDE_ADDITIONAL_MCP_CONFIG: ${error}`);
+    }
+  }
+
+  // Create the Claude Code settings directory
+  const homeDir = process.env.HOME || '/root';
+  const settingsDir = join(homeDir, '.config', 'claude-code');
+  mkdirSync(settingsDir, { recursive: true });
+
+  // Write the MCP configuration
+  const configPath = join(settingsDir, 'mcp.json');
+  writeFileSync(configPath, JSON.stringify(mcpConfig, null, 2));
+  
+  console.log(`MCP configuration written to ${configPath}`);
+  console.log('MCP servers configured:', Object.keys(mcpConfig.mcpServers).join(', '));
+}

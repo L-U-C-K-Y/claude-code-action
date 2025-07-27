@@ -13,11 +13,10 @@ import { GitLabAPI } from './api';
 import { 
   formatGitLabDataForPrompt, 
   createInitialCommentBody, 
-  createErrorCommentBody, 
-  createSuccessCommentBody,
   createUpdateSection 
 } from './formatter';
 import type { GitLabNote } from './types';
+import { prepareMcpConfig } from './install-mcp-server';
 
 // Import from upstream base-action (copied locally)
 import { validateEnvironmentVariables } from './upstream/validate-env';
@@ -33,7 +32,8 @@ const BASE_ALLOWED_TOOLS = [
   'Read',
   'Write',
   'Bash',
-  'TodoWrite'
+  'TodoWrite',
+  'mcp__gitlab_comment__update_claude_comment'  // MCP tool for updating comments
 ];
 
 const DISALLOWED_TOOLS = [
@@ -167,6 +167,10 @@ async function main() {
     process.env.GITLAB_IS_MR = context.isMR ? 'true' : 'false';
     process.env.GITLAB_IID = context.iid.toString();
     
+    // Prepare MCP configuration
+    console.log('Setting up MCP servers...');
+    prepareMcpConfig(context, trackingComment.id.toString());
+    
     // Prepare allowed tools based on environment variables
     const allowedTools = process.env.CLAUDE_ALLOWED_TOOLS 
       ? process.env.CLAUDE_ALLOWED_TOOLS.split(',').map(t => t.trim())
@@ -185,7 +189,7 @@ async function main() {
     console.log(`  Disallowed tools: ${disallowedTools.join(', ')}`);
     startTime = Date.now();
     try {
-      const claudeResult = await runClaude(promptFile, {
+      await runClaude(promptFile, {
         model: process.env.CLAUDE_MODEL,
         maxTurns: process.env.CLAUDE_MAX_TURNS,
         timeoutMinutes: process.env.CLAUDE_TIMEOUT_MINUTES || '30',

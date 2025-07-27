@@ -52,6 +52,7 @@ export interface GitLabNote {
   noteable_id: number;
   noteable_type: 'MergeRequest' | 'Issue';
   noteable_iid: number;
+  web_url?: string;
 }
 
 export interface GitLabDiscussion {

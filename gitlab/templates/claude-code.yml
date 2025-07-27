@@ -9,8 +9,9 @@
 #   - ANTHROPIC_API_KEY: Your Anthropic API key (or CLAUDE_CODE_OAUTH_TOKEN for Claude Pro/Teams)
 #
 # Optional CI/CD variables:
-#   - CLAUDE_ALLOWED_TOOLS: Comma-separated list of allowed tools (default: Edit,MultiEdit,Glob,Grep,LS,Read,Write,Bash,TodoWrite)
+#   - CLAUDE_ALLOWED_TOOLS: Comma-separated list of allowed tools (default includes MCP comment tool)
 #   - CLAUDE_DISALLOWED_TOOLS: Comma-separated list of disallowed tools (default: WebSearch,WebFetch)
+#   - CLAUDE_ADDITIONAL_MCP_CONFIG: JSON string with additional MCP server configurations
 #
 # Choose the model here: https://docs.anthropic.com/en/docs/about-claude/models/overview
 
@@ -49,6 +50,7 @@ variables:
     - git clone https://github.com/L-U-C-K-Y/claude-code-action.git /tmp/claude-code-action
     - cd /tmp/claude-code-action/gitlab && bun install
     - chmod +x /tmp/claude-code-action/gitlab/src/main.ts
+    - chmod +x /tmp/claude-code-action/gitlab/src/mcp/gitlab-comment-server.ts
     - export PATH="/tmp/claude-code-action/gitlab/src:$PATH"
     
   variables:

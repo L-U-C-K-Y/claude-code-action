@@ -9,6 +9,26 @@ Integrate Claude AI into your GitLab workflow for automated code reviews, test g
 - 🐛 **Bug Fixes**: Let Claude analyze and fix issues
 - 📝 **Documentation**: Generate or improve code documentation
 - 🔄 **Direct Integration**: Works within GitLab CI/CD pipelines
+- 💬 **Real-time Updates**: Claude updates comments with progress using MCP
+- 🔧 **Configurable Tools**: Control which tools Claude can use
+- 🎯 **Smart Replies**: Claude replies to existing comment threads
+
+## What's New
+
+### Recent Updates
+
+- **MCP Support**: Claude can now update comments in real-time with progress
+- **Smart Reply System**: Claude replies to existing comment threads instead of creating new comments
+- **Tool Configuration**: Control which tools Claude can access
+- **Better Context**: Claude sees all comments (triggers, context, resolved) for better understanding
+- **Environment Integration**: Uses GitLab CI environment variables automatically
+
+### How It Works
+
+1. **Trigger Detection**: When someone mentions `@claude`, the integration checks if Claude has already responded
+2. **Smart Replies**: Claude replies within the same discussion thread for better conversation flow
+3. **Progress Updates**: Using MCP, Claude can update its comment with real-time progress
+4. **Append Updates**: Final results are appended to the initial comment with timestamps
 
 ## Quick Start
 
@@ -34,9 +54,81 @@ include:
 ```
 
 That's it! Claude will now respond to:
+
 - Comments containing `@claude` in MRs or issues
 - Assignment to `claude-bot` user
 - Adding the `claude` label
+
+## Configuration
+
+You can customize Claude's behavior using CI/CD variables:
+
+| Variable | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `CLAUDE_BOT_TOKEN` | Yes | GitLab PAT with api and write_repository scopes | - |
+| `ANTHROPIC_API_KEY` | Yes* | Your Anthropic API key | - |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Yes* | Claude Pro/Teams OAuth token | - |
+| `CLAUDE_TRIGGER_PHRASE` | No | Phrase to trigger Claude | `@claude` |
+| `CLAUDE_BRANCH_PREFIX` | No | Prefix for branches Claude creates | `claude/` |
+| `CLAUDE_MODEL` | No | Claude model to use | Latest |
+| `CLAUDE_TIMEOUT_MINUTES` | No | Timeout for Claude execution | `30` |
+| `CLAUDE_MAX_TURNS` | No | Maximum conversation turns | `25` |
+| `CLAUDE_ALLOWED_TOOLS` | No | Comma-separated list of allowed tools | See below |
+| `CLAUDE_DISALLOWED_TOOLS` | No | Comma-separated list of disallowed tools | `WebSearch,WebFetch` |
+| `CLAUDE_ADDITIONAL_MCP_CONFIG` | No | JSON string with additional MCP server configurations | - |
+
+*Either `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` is required
+
+### Tool Configuration
+
+Claude has access to various tools for interacting with your codebase. Default allowed tools:
+
+- `Edit`, `MultiEdit` - Edit files
+- `Glob`, `Grep`, `LS`, `Read` - Search and read files
+- `Write` - Create new files
+- `Bash` - Run shell commands
+- `TodoWrite` - Track tasks
+- `mcp__gitlab_comment__update_claude_comment` - Update the GitLab comment with progress
+
+You can customize which tools are available:
+
+```yaml
+variables:
+  CLAUDE_ALLOWED_TOOLS: "Read,Edit,Grep"  # Only allow reading and basic editing
+  CLAUDE_DISALLOWED_TOOLS: "Bash,Write"   # Prevent running commands and creating files
+```
+
+### MCP (Model Context Protocol) Support
+
+The integration includes an MCP server that allows Claude to update comments in real-time. This provides better progress tracking and user feedback.
+
+You can also add your own MCP servers:
+
+```yaml
+variables:
+  CLAUDE_ADDITIONAL_MCP_CONFIG: |
+    {
+      "mcpServers": {
+        "my_custom_server": {
+          "command": "python",
+          "args": ["/path/to/my/server.py"],
+          "env": {
+            "API_KEY": "$MY_API_KEY"
+          }
+        }
+      }
+    }
+```
+
+### Environment Variables
+
+The integration automatically uses GitLab CI environment variables:
+
+- `CI_PROJECT_ID`, `CI_PROJECT_PATH`, `CI_PROJECT_URL` - Project information
+- `CI_MERGE_REQUEST_IID`, `CI_ISSUE_IID` - MR/Issue identification
+- `CI_API_V4_URL` - GitLab instance API URL (self-hosted support)
+- `CI_DEFAULT_BRANCH`, `CI_MERGE_REQUEST_SOURCE_BRANCH_NAME` - Branch information
+- `CI_JOB_ID`, `CI_JOB_URL`, `CI_PIPELINE_ID` - CI/CD context
 
 ## Usage Examples
 
@@ -61,19 +153,6 @@ Claude will:
 2. Create a new branch
 3. Implement the fix
 4. Create a merge request
-
-## Configuration
-
-You can customize Claude's behavior by setting these variables in your `.gitlab-ci.yml`:
-
-```yaml
-variables:
-  CLAUDE_TRIGGER_PHRASE: "@ai"          # Change trigger phrase
-  CLAUDE_BRANCH_PREFIX: "ai/"           # Change branch prefix
-  CLAUDE_MODEL: "claude-3-opus-20240229" # Use different model
-  CLAUDE_TIMEOUT_MINUTES: "60"          # Increase timeout
-  CLAUDE_MAX_TURNS: "50"                # Allow more interactions
-```
 
 ## Supported Triggers
 
@@ -111,6 +190,7 @@ To use a local development version instead of the published package:
 ### Permission errors
 
 Ensure the bot token has:
+
 - Access to the project (Developer role or higher)
 - `api` and `write_repository` scopes
 
