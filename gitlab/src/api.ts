@@ -283,50 +283,124 @@ export class GitLabAPI {
    * Uses the GitLab Discussions API to add a note to an existing thread
    */
   async createReply(params: CreateReplyParams): Promise<GitLabNote> {
-    if (params.isMR) {
-      const response = await this.gitlab.MergeRequestDiscussions.addNote(
-        params.projectId,
-        params.iid,
-        params.discussionId,
-        params.noteId,
-        params.body
-      );
-      // Extract the last note from the discussion response
-      const notes = response.notes || [];
-      return notes[notes.length - 1] as unknown as GitLabNote;
-    } else {
-      const response = await this.gitlab.IssueDiscussions.addNote(
-        params.projectId,
-        params.iid,
-        params.discussionId,
-        params.noteId,
-        params.body
-      );
-      // Extract the last note from the discussion response
-      const notes = response.notes || [];
-      return notes[notes.length - 1] as unknown as GitLabNote;
+    try {
+      console.log(`Creating reply with addNote: discussionId=${params.discussionId}, noteId=${params.noteId}`);
+      
+      if (params.isMR) {
+        const response = await this.gitlab.MergeRequestDiscussions.addNote(
+          params.projectId,
+          params.iid,
+          params.discussionId,
+          params.noteId,
+          params.body
+        );
+        console.log('MergeRequestDiscussions.addNote response:', JSON.stringify(response, null, 2));
+        
+        // The response might be the note directly or a discussion with notes
+        if (response && 'id' in response && 'body' in response) {
+          // Direct note response
+          return response as unknown as GitLabNote;
+        } else if (response && response.notes && response.notes.length > 0) {
+          // Discussion response with notes array
+          return response.notes[response.notes.length - 1] as unknown as GitLabNote;
+        } else {
+          // Fallback: create a new comment if addNote doesn't work as expected
+          console.log('Unexpected response from addNote, falling back to creating new comment');
+          return await this.createComment({
+            projectId: params.projectId,
+            isMR: params.isMR,
+            iid: params.iid,
+            body: `> Replying to discussion ${params.discussionId}\n\n${params.body}`
+          });
+        }
+      } else {
+        const response = await this.gitlab.IssueDiscussions.addNote(
+          params.projectId,
+          params.iid,
+          params.discussionId,
+          params.noteId,
+          params.body
+        );
+        console.log('IssueDiscussions.addNote response:', JSON.stringify(response, null, 2));
+        
+        // The response might be the note directly or a discussion with notes
+        if (response && 'id' in response && 'body' in response) {
+          // Direct note response
+          return response as unknown as GitLabNote;
+        } else if (response && response.notes && response.notes.length > 0) {
+          // Discussion response with notes array
+          return response.notes[response.notes.length - 1] as unknown as GitLabNote;
+        } else {
+          // Fallback: create a new comment if addNote doesn't work as expected
+          console.log('Unexpected response from addNote, falling back to creating new comment');
+          return await this.createComment({
+            projectId: params.projectId,
+            isMR: params.isMR,
+            iid: params.iid,
+            body: `> Replying to discussion ${params.discussionId}\n\n${params.body}`
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error in createReply:', error);
+      // Fallback to creating a new comment
+      console.log('Error with addNote, falling back to creating new comment');
+      return await this.createComment({
+        projectId: params.projectId,
+        isMR: params.isMR,
+        iid: params.iid,
+        body: `> Replying to discussion ${params.discussionId}\n\n${params.body}`
+      });
     }
   }
 
   /**
-   * Update an existing comment
+   * Update an existing comment by appending new content
    */
   async updateComment(params: UpdateCommentParams): Promise<GitLabNote> {
+    // First, get the current comment content
+    let currentNote: GitLabNote | undefined;
+    if (params.isMR) {
+      const discussions = await this.gitlab.MergeRequestDiscussions.all(params.projectId, params.iid);
+      currentNote = this.findNoteInDiscussions(discussions as unknown as GitLabDiscussion[], params.noteId);
+    } else {
+      const discussions = await this.gitlab.IssueDiscussions.all(params.projectId, params.iid);
+      currentNote = this.findNoteInDiscussions(discussions as unknown as GitLabDiscussion[], params.noteId);
+    }
+    
+    // Append new content to existing content
+    const updatedBody = currentNote ? `${currentNote.body}\n\n---\n\n${params.body}` : params.body;
+    
     if (params.isMR) {
       return await this.gitlab.MergeRequestNotes.edit(
         params.projectId,
         params.iid,
         params.noteId,
-        params.body
+        updatedBody
       ) as unknown as GitLabNote;
     } else {
       return await this.gitlab.IssueNotes.edit(
         params.projectId,
         params.iid,
         params.noteId,
-        params.body
+        updatedBody
       ) as unknown as GitLabNote;
     }
+  }
+  
+  /**
+   * Helper to find a note by ID in discussions
+   */
+  private findNoteInDiscussions(discussions: GitLabDiscussion[], noteId: number): GitLabNote | undefined {
+    for (const discussion of discussions) {
+      if (discussion.notes) {
+        const note = discussion.notes.find(n => n.id === noteId);
+        if (note) {
+          return note as unknown as GitLabNote;
+        }
+      }
+    }
+    return undefined;
   }
 
   /**

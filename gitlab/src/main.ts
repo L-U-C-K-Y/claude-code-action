@@ -14,7 +14,8 @@ import {
   formatGitLabDataForPrompt, 
   createInitialCommentBody, 
   createErrorCommentBody, 
-  createSuccessCommentBody 
+  createSuccessCommentBody,
+  createUpdateSection 
 } from './formatter';
 import type { GitLabNote } from './types';
 
@@ -212,12 +213,15 @@ Co-authored-by: Claude <claude-bot@anthropic.com>`;
             isMR: context.isMR,
             iid: context.iid,
             noteId: trackingComment.id,
-            body: createSuccessCommentBody(
+            body: createUpdateSection(
+              'success',
               'I\'ve analyzed the issue and created a merge request with the proposed changes.',
               context,
-              branchName,
-              mr.web_url,
-              durationStr
+              durationStr,
+              {
+                branchName,
+                mrUrl: mr.web_url
+              }
             )
           });
         }
@@ -229,12 +233,14 @@ Co-authored-by: Claude <claude-bot@anthropic.com>`;
             isMR: context.isMR,
             iid: context.iid,
             noteId: trackingComment.id,
-            body: createSuccessCommentBody(
+            body: createUpdateSection(
+              'success',
               'I\'ve pushed updates to this merge request based on the feedback.',
               context,
-              branchName,
-              undefined,
-              durationStr
+              durationStr,
+              {
+                branchName
+              }
             )
           });
         }
@@ -247,11 +253,10 @@ Co-authored-by: Claude <claude-bot@anthropic.com>`;
           isMR: context.isMR,
           iid: context.iid,
           noteId: trackingComment.id,
-          body: createSuccessCommentBody(
+          body: createUpdateSection(
+            'success',
             'I\'ve analyzed the request. No code changes were needed, but I hope my analysis was helpful!',
             context,
-            undefined,
-            undefined,
             durationStr
           )
         });
@@ -278,7 +283,8 @@ Co-authored-by: Claude <claude-bot@anthropic.com>`;
           isMR: context.isMR,
           iid: context.iid,
           noteId: trackingComment.id,
-          body: createErrorCommentBody(
+          body: createUpdateSection(
+            'error',
             error instanceof Error ? error.message : String(error),
             context,
             durationStr

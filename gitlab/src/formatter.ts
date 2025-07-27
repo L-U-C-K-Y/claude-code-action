@@ -252,3 +252,58 @@ export function createSuccessCommentBody(
 
 ${summary}`;
 }
+
+export function createUpdateSection(
+  status: 'success' | 'error' | 'progress',
+  message: string,
+  context: GitLabContext,
+  duration?: string,
+  additionalInfo?: {
+    branchName?: string;
+    mrUrl?: string;
+  }
+): string {
+  const timestamp = new Date().toLocaleTimeString();
+  let statusEmoji = '';
+  let statusText = '';
+  
+  switch (status) {
+    case 'success':
+      statusEmoji = '✅';
+      statusText = 'Completed';
+      break;
+    case 'error':
+      statusEmoji = '❌';
+      statusText = 'Error';
+      break;
+    case 'progress':
+      statusEmoji = '⏳';
+      statusText = 'In Progress';
+      break;
+  }
+  
+  let update = `**${statusEmoji} ${statusText}** _(${timestamp}`;
+  if (duration) {
+    update += `, duration: ${duration}`;
+  }
+  update += ')_\n\n';
+  
+  update += message;
+  
+  if (additionalInfo?.branchName || additionalInfo?.mrUrl) {
+    update += '\n\n';
+    if (additionalInfo.branchName) {
+      const branchUrl = `${context.webUrl}/-/tree/${additionalInfo.branchName}`;
+      update += `- Branch: [\`${additionalInfo.branchName}\`](${branchUrl})\n`;
+    }
+    if (additionalInfo.mrUrl) {
+      update += `- Merge Request: [View MR](${additionalInfo.mrUrl})\n`;
+    }
+  }
+  
+  if (status === 'error' || status === 'success') {
+    update += `\n[View job logs](${context.jobUrl})`;
+  }
+  
+  return update;
+}
