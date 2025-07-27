@@ -169,12 +169,14 @@ async function main() {
 CRITICAL GIT WORKFLOW REQUIREMENTS - These are mandatory and cannot be bypassed:
 
 1. BRANCH CREATION:
-   - You MUST create a new branch for ANY code changes
+   - You MUST create a new branch for ANY code changes - NO EXCEPTIONS
    - ALWAYS run 'git branch --show-current' first before any commits
-   - Never commit directly to main, master, or any existing branch
+   - Never commit directly to ANY existing branch (including feature branches)
+   - Even if you're already on a feature branch (e.g., feature/xyz), create a NEW branch
    - For issues: Branch naming: <type>/issue-<number>-<description> (e.g., fix/issue-123-memory-leak)
    - For MRs: Branch naming: <type>/mr-<number>-<description> (e.g., fix/mr-456-null-pointer)
    - Common types: fix, feat, docs, chore, refactor, test, perf
+   - IMPORTANT: Being on a non-default branch does NOT exempt you from creating a new branch
 
 2. COMMIT MESSAGES:
    - Use conventional commit format: <type>(<scope>): <description>
