@@ -164,6 +164,34 @@ async function main() {
       ? process.env.CLAUDE_DISALLOWED_TOOLS.split(',').map(t => t.trim())
       : DISALLOWED_TOOLS;
     
+    // Prepare system prompt enforcement for git workflow
+    const appendSystemPrompt = `
+CRITICAL GIT WORKFLOW REQUIREMENTS - These are mandatory and cannot be bypassed:
+
+1. BRANCH CREATION:
+   - You MUST create a new branch for ANY code changes
+   - ALWAYS run 'git branch --show-current' first before any commits
+   - Never commit directly to main, master, or any existing branch
+   - For issues: Branch naming: <type>/issue-<number>-<description> (e.g., fix/issue-123-memory-leak)
+   - For MRs: Branch naming: <type>/mr-<number>-<description> (e.g., fix/mr-456-null-pointer)
+   - Common types: fix, feat, docs, chore, refactor, test, perf
+
+2. COMMIT MESSAGES:
+   - Use conventional commit format: <type>(<scope>): <description>
+   - Examples: "fix(api): resolve null pointer exception", "feat(auth): add OAuth2 integration"
+   - Include issue/MR reference: "fixes #123" or "relates to !456"
+   - Add co-author when working on behalf of someone: "Co-authored-by: Name <email>"
+
+3. WORKFLOW:
+   - Create branch → Make changes → Commit with descriptive message → Push to remote
+   - Always include a merge request URL in your final comment
+   - Format: [Create MR](${context.webUrl}/-/merge_requests/new?merge_request[source_branch]=<branch>&merge_request[target_branch]=<target>)
+
+4. COMMUNICATION:
+   - Use ONLY mcp__gitlab_comment__update_claude_comment tool for all updates
+   - Never use file writes or other methods to communicate progress
+`;
+
     // Run Claude
     console.log('Running Claude Code...');
     console.log(`  Model: ${process.env.CLAUDE_MODEL || 'default'}`);
@@ -171,6 +199,10 @@ async function main() {
     console.log(`  Timeout: ${process.env.CLAUDE_TIMEOUT_MINUTES || '30'} minutes`);
     console.log(`  Allowed tools: ${allowedTools.join(', ')}`);
     console.log(`  Disallowed tools: ${disallowedTools.join(', ')}`);
+    console.log('\nSystem Prompt Append:');
+    console.log('---');
+    console.log(appendSystemPrompt.trim());
+    console.log('---\n');
     startTime = Date.now();
     try {
       await runClaude(promptFile, {
@@ -179,7 +211,8 @@ async function main() {
         timeoutMinutes: process.env.CLAUDE_TIMEOUT_MINUTES || '30',
         allowedTools: allowedTools.join(','),
         disallowedTools: disallowedTools.join(','),
-        mcpConfig: mcpConfigJson
+        mcpConfig: mcpConfigJson,
+        appendSystemPrompt: appendSystemPrompt.trim()
       });
     } finally {
       // Cleanup if needed

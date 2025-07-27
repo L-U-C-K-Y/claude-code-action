@@ -25,56 +25,15 @@ export function formatGitLabDataForPrompt(
   prompt += 'This tool allows you to provide real-time updates about what you are doing.\n\n';
   prompt += 'Focus on addressing the specific questions and tasks mentioned in the comments below.\n\n';
   
-  // Add Git workflow instructions
-  prompt += '### Git Workflow Instructions\n\n';
-  prompt += 'You have full control over git operations. Use the Bash tool to execute git commands.\n\n';
-  
-  prompt += '**IMPORTANT: Always create a new branch for your changes. Never commit directly to the default branch.**\n\n';
-  
-  prompt += '**For Issues:**\n';
-  prompt += '- ALWAYS create a new branch with a descriptive name (e.g., `fix/issue-123-description`, `feat/issue-456-new-feature`)\n';
-  prompt += '- Branch naming convention: `<type>/<issue-number>-<brief-description>`\n';
-  prompt += '- Common types: `fix`, `feat`, `docs`, `chore`, `refactor`, `test`, `perf`\n';
-  prompt += '- Never push changes without creating a feature branch first\n\n';
-  
-  prompt += '**For Merge Requests:**\n';
-  prompt += '- ALWAYS create a new branch for any changes, even when reviewing MRs\n';
-  prompt += '- Branch naming convention: `<type>/mr-<mr-number>-<brief-description>`\n';
-  prompt += '- Example: `fix/mr-123-null-pointer` or `refactor/mr-456-improve-performance`\n';
-  prompt += '- This ensures all changes are tracked and can be reviewed separately\n';
-  prompt += '- Never commit directly to any existing branch\n\n';
-  
-  prompt += '**Commit Messages:**\n';
-  prompt += '- Use conventional commit format: `<type>(<scope>): <description>`\n';
-  prompt += '- Examples:\n';
-  prompt += '  - `fix(api): resolve null pointer exception in user service`\n';
-  prompt += '  - `feat(auth): add OAuth2 integration`\n';
-  prompt += '  - `docs: update README with installation instructions`\n';
-  prompt += '- Include issue/MR reference when relevant: `fixes #123` or `relates to !456`\n';
-  prompt += '- Add co-author when working on behalf of someone: `Co-authored-by: Name <email>`\n\n';
-  
-  prompt += '**Git Commands Available:**\n';
-  prompt += '- View current branch: `git branch --show-current`\n';
-  prompt += '- Create and switch to new branch: `git checkout -b <branch-name>`\n';
-  prompt += '- Stage files: `git add <files>` or `git add -A` for all changes\n';
-  prompt += '- Commit with message: `git commit -m "<message>"`\n';
-  prompt += '- Push to remote: `git push origin <branch-name>`\n';
-  prompt += '- Check status: `git status`\n';
-  prompt += '- View diff: `git diff`\n\n';
-  
-  prompt += '**Branch Safety Check:**\n';
-  prompt += '- ALWAYS run `git branch --show-current` before making commits\n';
-  prompt += '- If you are on `main`, `master`, or the default branch, create a new branch immediately\n';
-  prompt += '- This ensures code changes go through proper review process\n\n';
-  
-  prompt += '**After Making Changes:**\n';
-  prompt += '- Always create a merge request URL in your comment:\n';
-  prompt += `  - Format: \`[Create MR](${context.webUrl}/-/merge_requests/new?merge_request[source_branch]=<branch-name>&merge_request[target_branch]=<target>)\`\n`;
-  prompt += '  - Replace `<branch-name>` with your created branch\n';
-  prompt += '  - For issues: `<target>` should be the default branch\n';
-  prompt += '  - For MRs: `<target>` should be the MR\'s source branch\n';
-  prompt += '- Always include a summary of changes in your final comment update\n';
-  prompt += '- The new MR allows proper review of your specific changes\n\n';
+  // Git workflow reference (detailed requirements are in system prompt)
+  prompt += '### Git Workflow\n\n';
+  prompt += 'You have full control over git operations using the Bash tool.\n';
+  prompt += 'Follow the mandatory git workflow requirements defined in your system prompt.\n';
+  prompt += 'Key reminders:\n';
+  prompt += '- Always create new branches for changes\n';
+  prompt += '- Use conventional commit messages\n';
+  prompt += '- Include merge request URLs in your comments\n';
+  prompt += '- Communicate only via the MCP comment tool\n\n';
   
   // Add response instructions based on categorized comments
   if (data.categorizedComments && data.categorizedComments.triggerComments.length > 0) {
