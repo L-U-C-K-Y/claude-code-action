@@ -12,9 +12,12 @@ import type {
   GitLabDiff,
   GitLabCommit,
   CreateCommentParams,
+  CreateReplyParams,
   UpdateCommentParams,
   FetchDataResult,
-  TriggerCheckResult
+  TriggerCheckResult,
+  TriggerComment,
+  CategorizedComments
 } from './types';
 import { isValidTrigger } from './context';
 
@@ -36,37 +39,70 @@ export class GitLabAPI {
    */
   async checkTrigger(context: GitLabContext): Promise<TriggerCheckResult> {
     try {
-      // Get recent discussions
+      // Get ALL discussions
       const discussions = context.isMR
         ? await this.gitlab.MergeRequestDiscussions.all(this.projectId, context.iid)
         : await this.gitlab.IssueDiscussions.all(this.projectId, context.iid);
 
       console.log(`Found ${discussions?.length || 0} discussions`);
 
-      // Check all notes across all discussions for trigger
+      const triggerComments: TriggerComment[] = [];
+      const claudeBotPattern = /claude[- ]?bot/i;
+      
+      // Check all discussions for triggers and existing Claude replies
       if (discussions && discussions.length > 0) {
-        // Flatten all notes from all discussions and sort by created_at
-        const allNotes = discussions
-          .flatMap(d => d.notes || [])
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        
-        console.log(`Total notes across all discussions: ${allNotes.length}`);
-        
-        // Check most recent notes (last 5) for trigger
-        const recentNotes = allNotes.slice(0, 5);
-        console.log(`Checking ${recentNotes.length} most recent notes for trigger phrase "${context.triggerPhrase}"`);
-        
-        for (const note of recentNotes) {
-          console.log(`Note from ${note.author?.username}: "${note.body?.substring(0, 50)}..."`);
-          if (note.body && isValidTrigger(note.body, context)) {
-            return {
-              shouldRun: true,
-              reason: 'Found trigger phrase in recent comment',
-              triggerType: 'comment',
-              triggerComment: note as unknown as GitLabNote
-            };
+        for (const discussion of discussions) {
+          const notes = discussion.notes || [];
+          let hasClaudeReply = false;
+          const triggerNotesInDiscussion: GitLabNote[] = [];
+          
+          // Check each note in the discussion
+          for (const note of notes) {
+            // Check if this is a Claude bot reply
+            if (note.author && typeof note.author === 'object' && 'username' in note.author && 
+                typeof note.author.username === 'string' && claudeBotPattern.test(note.author.username)) {
+              hasClaudeReply = true;
+            }
+            
+            // Check if this is a trigger comment
+            if (note.body && isValidTrigger(note.body, context)) {
+              triggerNotesInDiscussion.push(note as unknown as GitLabNote);
+            }
+          }
+          
+          // Add trigger comments from this discussion
+          for (const triggerNote of triggerNotesInDiscussion) {
+            triggerComments.push({
+              note: triggerNote,
+              discussionId: discussion.id,
+              hasClaudeReply
+            });
           }
         }
+      }
+      
+      console.log(`Found ${triggerComments.length} trigger comments`);
+      console.log(`Triggers with existing Claude replies: ${triggerComments.filter(t => t.hasClaudeReply).length}`);
+      
+      // Check if we should run
+      const newTriggers = triggerComments.filter(t => !t.hasClaudeReply);
+      
+      if (newTriggers.length > 0) {
+        return {
+          shouldRun: true,
+          reason: `Found ${newTriggers.length} new trigger comment(s) without Claude replies`,
+          triggerType: 'comment',
+          triggerComments: newTriggers,
+          hasExistingResponse: triggerComments.some(t => t.hasClaudeReply)
+        };
+      } else if (triggerComments.length > 0) {
+        return {
+          shouldRun: false,
+          reason: 'All trigger comments already have Claude replies',
+          triggerType: 'comment',
+          triggerComments: [],
+          hasExistingResponse: true
+        };
       }
 
       // Check for assignment trigger (MR only)
@@ -77,7 +113,9 @@ export class GitLabAPI {
           return {
             shouldRun: true,
             reason: 'Claude bot is assigned',
-            triggerType: 'assignment'
+            triggerType: 'assignment',
+            triggerComments: [],
+            hasExistingResponse: false
           };
         }
       }
@@ -91,19 +129,25 @@ export class GitLabAPI {
         return {
           shouldRun: true,
           reason: 'Found claude label',
-          triggerType: 'label'
+          triggerType: 'label',
+          triggerComments: [],
+          hasExistingResponse: false
         };
       }
 
       return {
         shouldRun: false,
-        reason: 'No trigger found'
+        reason: 'No trigger found',
+        triggerComments: [],
+        hasExistingResponse: false
       };
     } catch (error) {
       console.error('Error checking trigger:', error);
       return {
         shouldRun: false,
-        reason: `Error checking trigger: ${error}`
+        reason: `Error checking trigger: ${error}`,
+        triggerComments: [],
+        hasExistingResponse: false
       };
     }
   }
@@ -112,6 +156,8 @@ export class GitLabAPI {
    * Fetch all relevant data for MR or Issue
    */
   async fetchData(context: GitLabContext): Promise<FetchDataResult> {
+    let result: FetchDataResult;
+    
     if (context.isMR) {
       // Fetch MR data
       const [mr, discussions, changes, commits] = await Promise.all([
@@ -121,7 +167,7 @@ export class GitLabAPI {
         this.gitlab.MergeRequests.commits(this.projectId, context.iid) as unknown as Promise<GitLabCommit[]>
       ]);
 
-      return {
+      result = {
         context: mr,
         discussions,
         changes,
@@ -134,11 +180,73 @@ export class GitLabAPI {
         this.gitlab.IssueDiscussions.all(this.projectId, context.iid) as unknown as Promise<GitLabDiscussion[]>
       ]);
 
-      return {
+      result = {
         context: issue,
         discussions
       };
     }
+    
+    // Categorize comments
+    const categorized = this.categorizeComments(result.discussions, context);
+    result.categorizedComments = categorized;
+    
+    return result;
+  }
+  
+  /**
+   * Categorize comments into triggers, context, resolved, and Claude replies
+   */
+  private categorizeComments(discussions: GitLabDiscussion[], context: GitLabContext): CategorizedComments {
+    const triggerComments: GitLabNote[] = [];
+    const contextComments: GitLabNote[] = [];
+    const resolvedComments: GitLabNote[] = [];
+    const claudeReplies: GitLabNote[] = [];
+    const claudeBotPattern = /claude[- ]?bot/i;
+    
+    for (const discussion of discussions) {
+      const notes = discussion.notes || [];
+      const isResolved = discussion.resolved || false;
+      let hasClaudeReply = false;
+      
+      // First pass: identify Claude replies
+      for (const note of notes) {
+        if (note.author && typeof note.author === 'object' && 'username' in note.author && 
+            typeof note.author.username === 'string' && claudeBotPattern.test(note.author.username)) {
+          claudeReplies.push(note as unknown as GitLabNote);
+          hasClaudeReply = true;
+        }
+      }
+      
+      // Second pass: categorize other comments
+      for (const note of notes) {
+        // Skip Claude's own comments
+        if (note.author && typeof note.author === 'object' && 'username' in note.author && 
+            typeof note.author.username === 'string' && claudeBotPattern.test(note.author.username)) {
+          continue;
+        }
+        
+        const noteObj = note as unknown as GitLabNote;
+        
+        // Check if it's a trigger comment
+        if (note.body && isValidTrigger(note.body, context)) {
+          triggerComments.push(noteObj);
+        } else if (isResolved) {
+          resolvedComments.push(noteObj);
+        } else {
+          // It's a context comment (unresolved, non-trigger)
+          contextComments.push(noteObj);
+        }
+      }
+    }
+    
+    console.log(`Categorized comments: ${triggerComments.length} triggers, ${contextComments.length} context, ${resolvedComments.length} resolved, ${claudeReplies.length} Claude replies`);
+    
+    return {
+      triggerComments,
+      contextComments,
+      resolvedComments,
+      claudeReplies
+    };
   }
 
   /**
@@ -156,6 +264,31 @@ export class GitLabAPI {
         params.projectId,
         params.iid,
         params.body
+      ) as unknown as GitLabNote;
+    }
+  }
+
+  /**
+   * Create a reply to an existing discussion
+   * For now, we'll create a new comment as a workaround since the discussion reply API
+   * is not fully exposed in gitbeaker v35
+   */
+  async createReply(params: CreateReplyParams): Promise<GitLabNote> {
+    // Workaround: Create a new note that references the discussion
+    // This will appear in the same thread in the GitLab UI
+    const replyBody = `> In reply to discussion ${params.discussionId}\n\n${params.body}`;
+    
+    if (params.isMR) {
+      return await this.gitlab.MergeRequestNotes.create(
+        params.projectId,
+        params.iid,
+        replyBody
+      ) as unknown as GitLabNote;
+    } else {
+      return await this.gitlab.IssueNotes.create(
+        params.projectId,
+        params.iid,
+        replyBody
       ) as unknown as GitLabNote;
     }
   }

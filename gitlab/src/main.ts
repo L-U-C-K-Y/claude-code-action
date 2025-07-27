@@ -28,6 +28,8 @@ async function main() {
   let context: ReturnType<typeof parseGitLabContext> | undefined;
   let api: GitLabAPI | undefined;
   let trackingComment: GitLabNote | undefined;
+  let startTime: number | undefined;
+  let durationStr = '';
 
   try {
     // Parse GitLab context
@@ -39,6 +41,10 @@ async function main() {
 
     // Check if we should run
     const triggerCheck = await api.checkTrigger(context);
+
+    // Log context
+    console.log('Parsed context:', JSON.stringify(context, null, 2));
+    
     if (!triggerCheck.shouldRun) {
       console.log(`No trigger found: ${triggerCheck.reason}`);
       process.exit(0);
@@ -46,13 +52,27 @@ async function main() {
     console.log(`Trigger found: ${triggerCheck.reason} (${triggerCheck.triggerType})`);
 
     // Create initial tracking comment
-    trackingComment = await api.createComment({
-      projectId: context.projectId,
-      isMR: context.isMR,
-      iid: context.iid,
-      body: createInitialCommentBody(context)
-    });
-    console.log(`Created tracking comment: ${trackingComment.id}`);
+    // If we have trigger comments, reply to the first one
+    if (triggerCheck.triggerComments.length > 0 && triggerCheck.triggerType === 'comment') {
+      const firstTrigger = triggerCheck.triggerComments[0];
+      trackingComment = await api.createReply({
+        projectId: context.projectId,
+        isMR: context.isMR,
+        iid: context.iid,
+        discussionId: firstTrigger.discussionId,
+        body: createInitialCommentBody(context)
+      });
+      console.log(`Created tracking reply in discussion ${firstTrigger.discussionId}: ${trackingComment.id}`);
+    } else {
+      // Fall back to creating a new comment if no trigger comments
+      trackingComment = await api.createComment({
+        projectId: context.projectId,
+        isMR: context.isMR,
+        iid: context.iid,
+        body: createInitialCommentBody(context)
+      });
+      console.log(`Created tracking comment: ${trackingComment.id}`);
+    }
 
     // Fetch all relevant data
     console.log('Fetching GitLab data...');
@@ -106,13 +126,39 @@ async function main() {
       throw new Error(`Environment validation failed: ${error}`);
     }
 
+    // Set environment variables for Claude execution
+    process.env.CLAUDE_COMMENT_ID = trackingComment.id.toString();
+    process.env.GITLAB_PROJECT_ID = context.projectId;
+    process.env.GITLAB_TOKEN = context.token;
+    process.env.GITLAB_API_URL = context.apiUrl;
+    process.env.GITLAB_IS_MR = context.isMR ? 'true' : 'false';
+    process.env.GITLAB_IID = context.iid.toString();
+    
+    // Start comment watcher in background
+    const watcherPath = join(__dirname, 'comment-watcher.ts');
+    const watcher = execSync(`nohup bun ${watcherPath} > /tmp/comment-watcher.log 2>&1 & echo $!`).toString().trim();
+    console.log(`Started comment watcher (PID: ${watcher})`);
+    
     // Run Claude
     console.log('Running Claude Code...');
-    const claudeResult = await runClaude(promptFile, {
-      model: process.env.CLAUDE_MODEL,
-      maxTurns: process.env.CLAUDE_MAX_TURNS,
-      timeoutMinutes: process.env.CLAUDE_TIMEOUT_MINUTES || '30'
-    });
+    startTime = Date.now();
+    try {
+      const claudeResult = await runClaude(promptFile, {
+        model: process.env.CLAUDE_MODEL,
+        maxTurns: process.env.CLAUDE_MAX_TURNS,
+        timeoutMinutes: process.env.CLAUDE_TIMEOUT_MINUTES || '30'
+      });
+    } finally {
+      // Stop the comment watcher
+      try {
+        execSync(`kill ${watcher}`);
+      } catch (e) {
+        // Ignore errors if process already stopped
+      }
+    }
+    
+    const duration = Math.round((Date.now() - startTime) / 1000);
+    durationStr = duration > 60 ? `${Math.floor(duration / 60)}m ${duration % 60}s` : `${duration}s`;
 
     // Check if any changes were made
     const gitStatus = execSync('git status --porcelain').toString().trim();
@@ -151,7 +197,8 @@ Co-authored-by: Claude <claude-bot@anthropic.com>`;
               'I\'ve analyzed the issue and created a merge request with the proposed changes.',
               context,
               branchName,
-              mr.web_url
+              mr.web_url,
+              durationStr
             )
           });
         }
@@ -166,7 +213,9 @@ Co-authored-by: Claude <claude-bot@anthropic.com>`;
             body: createSuccessCommentBody(
               'I\'ve pushed updates to this merge request based on the feedback.',
               context,
-              branchName
+              branchName,
+              undefined,
+              durationStr
             )
           });
         }
@@ -181,7 +230,10 @@ Co-authored-by: Claude <claude-bot@anthropic.com>`;
           noteId: trackingComment.id,
           body: createSuccessCommentBody(
             'I\'ve analyzed the request. No code changes were needed, but I hope my analysis was helpful!',
-            context
+            context,
+            undefined,
+            undefined,
+            durationStr
           )
         });
       }
@@ -193,6 +245,12 @@ Co-authored-by: Claude <claude-bot@anthropic.com>`;
   } catch (error) {
     console.error('❌ Error:', error);
     
+    // Calculate duration if we have a start time
+    if (startTime) {
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      durationStr = duration > 60 ? `${Math.floor(duration / 60)}m ${duration % 60}s` : `${duration}s`;
+    }
+    
     // Try to update the comment with error information
     if (trackingComment && api && context) {
       try {
@@ -203,7 +261,8 @@ Co-authored-by: Claude <claude-bot@anthropic.com>`;
           noteId: trackingComment.id,
           body: createErrorCommentBody(
             error instanceof Error ? error.message : String(error),
-            context
+            context,
+            durationStr
           )
         });
       } catch (updateError) {

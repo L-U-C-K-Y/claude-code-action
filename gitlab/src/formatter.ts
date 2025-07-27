@@ -18,7 +18,23 @@ export function formatGitLabDataForPrompt(
 ): string {
   const { context: entity, discussions, changes, commits } = data;
   
-  let prompt = '';
+  let prompt = '## GitLab Integration Instructions\n\n';
+  prompt += 'You are Claude Code running in a GitLab CI/CD pipeline.\n';
+  prompt += 'You have a tracking comment that shows your progress.\n';
+  prompt += 'As you work through tasks, update the comment to show progress.\n';
+  prompt += 'You can update the comment by writing to a file named `/tmp/gitlab-comment-update.md`.\n';
+  prompt += 'The GitLab integration will automatically update your comment with the contents of this file.\n';
+  prompt += 'Use markdown checkboxes (- [ ] and - [x]) to show task progress.\n\n';
+  
+  // Add response instructions based on categorized comments
+  if (data.categorizedComments && data.categorizedComments.triggerComments.length > 0) {
+    prompt += '### Your Task\n\n';
+    prompt += 'You have been asked to respond to specific questions (see "Questions for Claude" section below).\n';
+    prompt += 'Please address each question thoroughly, considering any context from unresolved discussions.\n';
+    prompt += 'If you make code changes, create a new branch and prepare a merge request.\n\n';
+  }
+  
+  prompt += '---\n\n';
 
   // Add entity information
   if (context.isMR) {
@@ -65,18 +81,64 @@ export function formatGitLabDataForPrompt(
     }
   }
 
-  // Add discussions
-  if (discussions && discussions.length > 0) {
-    prompt += `### Discussion\n\n`;
-    discussions.forEach(discussion => {
-      discussion.notes.forEach(note => {
-        if (!note.system) { // Skip system notes
-          const timestamp = new Date(note.created_at).toLocaleString();
-          prompt += `**@${note.author.username}** (${timestamp}):\n`;
-          prompt += `${note.body}\n\n`;
-        }
+  // Add categorized comments
+  if (data.categorizedComments) {
+    const { triggerComments, contextComments, claudeReplies } = data.categorizedComments;
+    
+    // Add trigger comments (questions for Claude)
+    if (triggerComments.length > 0) {
+      prompt += '\n### 🎯 Questions for Claude\n\n';
+      prompt += '_These comments specifically requested Claude\'s attention:_\n\n';
+      
+      for (const comment of triggerComments) {
+        const author = comment.author?.username || 'unknown';
+        const date = new Date(comment.created_at).toLocaleString();
+        const body = comment.body || '';
+        
+        prompt += `**@${author}** (${date}):\n${body}\n\n`;
+      }
+    }
+    
+    // Add context comments (unresolved discussions)
+    if (contextComments.length > 0) {
+      prompt += '\n### 💬 Discussion Context\n\n';
+      prompt += '_These are unresolved comments that may be relevant:_\n\n';
+      
+      for (const comment of contextComments) {
+        const author = comment.author?.username || 'unknown';
+        const date = new Date(comment.created_at).toLocaleString();
+        const body = comment.body || '';
+        
+        prompt += `**@${author}** (${date}):\n${body}\n\n`;
+      }
+    }
+    
+    // Add previous Claude replies for context
+    if (claudeReplies.length > 0) {
+      prompt += '\n### 🤖 Previous Claude Responses\n\n';
+      prompt += '_Your previous responses in this discussion:_\n\n';
+      
+      for (const comment of claudeReplies) {
+        const date = new Date(comment.created_at).toLocaleString();
+        const body = comment.body || '';
+        
+        prompt += `**Claude** (${date}):\n${body}\n\n`;
+      }
+    }
+  } else {
+    // Fallback to showing all discussions if categorization is not available
+    if (discussions && discussions.length > 0) {
+      prompt += `### Discussion\n\n`;
+      discussions.forEach(discussion => {
+        discussion.notes.forEach(note => {
+          if (!note.system) { // Skip system notes
+            const timestamp = new Date(note.created_at).toLocaleString();
+            prompt += `**@${note.author.username}** (${timestamp}):\n`;
+            prompt += `${note.body}\n\n`;
+          }
+        });
       });
-    });
+    }
   }
 
   // Add context about the current job
@@ -117,34 +179,37 @@ export function formatFileChangesForPrompt(changes: GitLabDiff[]): string {
 export function createInitialCommentBody(context: GitLabContext): string {
   const entityType = context.isMR ? 'merge request' : 'issue';
   
-  return `## 🤖 Claude is thinking...
-
-I'll analyze this ${entityType} and respond shortly.
-
-**[View job logs](${context.jobUrl})**
+  return `Claude Code is working…
 
 ---
-<details>
-<summary>Progress</summary>
 
-- [ ] Analyzing ${entityType} context
-- [ ] Understanding the request
+<details>
+<summary>Task List</summary>
+
+- [ ] Analyzing ${entityType} #${context.iid}
+- [ ] Understanding the request from @${context.triggerUsername || 'user'}
 - [ ] Preparing response
 - [ ] Implementing changes (if needed)
 
 </details>`;
 }
 
-export function createErrorCommentBody(error: string, context: GitLabContext): string {
-  return `## ❌ Claude encountered an error
-
-I'm sorry, but I encountered an error while processing this request:
+export function createErrorCommentBody(error: string, context: GitLabContext, duration?: string): string {
+  let header = '**Claude encountered an error';
+  if (duration) {
+    header += ` after ${duration}`;
+  }
+  header += '**';
+  
+  const links = ` —— [View job](${context.jobUrl})`;
+  
+  return `${header}${links}
 
 \`\`\`
 ${error}
 \`\`\`
 
-**[View job logs](${context.jobUrl})** for more details.
+---
 
 Please check:
 - The GitLab token has proper permissions
@@ -158,21 +223,32 @@ export function createSuccessCommentBody(
   summary: string,
   context: GitLabContext,
   branchName?: string,
-  mrUrl?: string
+  mrUrl?: string,
+  duration?: string
 ): string {
-  let body = `## ✅ Claude has completed the task
-
-${summary}
-
-**[View job logs](${context.jobUrl})**`;
-
+  const username = context.triggerUsername || 'user';
+  let header = `**Claude finished @${username}'s task`;
+  
+  if (duration) {
+    header += ` in ${duration}`;
+  }
+  header += '**';
+  
+  // Build links section
+  let links = ` —— [View job](${context.jobUrl})`;
+  
   if (branchName) {
-    body += `\n\n**Branch:** \`${branchName}\``;
+    const branchUrl = `${context.webUrl}/-/tree/${branchName}`;
+    links += ` • [\`${branchName}\`](${branchUrl})`;
   }
-
+  
   if (mrUrl) {
-    body += `\n**Merge Request:** ${mrUrl}`;
+    links += ` • [Create MR ➔](${mrUrl})`;
   }
+  
+  return `${header}${links}
 
-  return body;
+---
+
+${summary}`;
 }

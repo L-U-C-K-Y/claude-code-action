@@ -28,6 +28,7 @@ export function parseGitLabContext(): GitLabContext {
     projectId: process.env.CI_PROJECT_ID || '',
     projectPath: process.env.CI_PROJECT_PATH || '',
     projectUrl: process.env.CI_PROJECT_URL || '',
+    webUrl: process.env.CI_PROJECT_URL || '',
     
     // MR/Issue context
     isMR,
@@ -35,6 +36,7 @@ export function parseGitLabContext(): GitLabContext {
     
     // User and trigger info
     triggerUser: process.env.GITLAB_USER_LOGIN || process.env.CI_COMMIT_AUTHOR || '',
+    triggerUsername: process.env.GITLAB_USER_LOGIN || process.env.CI_COMMIT_AUTHOR || '', // alias
     triggerPhrase: process.env.CLAUDE_TRIGGER_PHRASE || '@claude',
     
     // Branch information

@@ -7,6 +7,7 @@ export interface GitLabContext {
   projectId: string;
   projectPath: string;
   projectUrl: string;
+  webUrl: string;
   
   // MR/Issue context
   isMR: boolean;
@@ -14,6 +15,7 @@ export interface GitLabContext {
   
   // User and trigger info
   triggerUser: string;
+  triggerUsername: string; // alias for triggerUser for compatibility
   triggerPhrase: string;
   
   // Branch information
@@ -56,6 +58,7 @@ export interface GitLabDiscussion {
   id: string;
   individual_note: boolean;
   notes: GitLabNote[];
+  resolved?: boolean;
 }
 
 export interface GitLabMergeRequest {
@@ -140,13 +143,28 @@ export interface TriggerCheckResult {
   shouldRun: boolean;
   reason: string;
   triggerType?: 'comment' | 'assignment' | 'label';
-  triggerComment?: GitLabNote;
+  triggerComments: TriggerComment[];
+  hasExistingResponse: boolean;
+}
+
+export interface TriggerComment {
+  note: GitLabNote;
+  discussionId: string;
+  hasClaudeReply: boolean;
 }
 
 export interface CreateCommentParams {
   projectId: string;
   isMR: boolean;
   iid: number;
+  body: string;
+}
+
+export interface CreateReplyParams {
+  projectId: string;
+  isMR: boolean;
+  iid: number;
+  discussionId: string;
   body: string;
 }
 
@@ -159,4 +177,12 @@ export interface FetchDataResult {
   discussions: GitLabDiscussion[];
   changes?: GitLabDiff[];
   commits?: GitLabCommit[];
+  categorizedComments?: CategorizedComments;
+}
+
+export interface CategorizedComments {
+  triggerComments: GitLabNote[];
+  contextComments: GitLabNote[];
+  resolvedComments: GitLabNote[];
+  claudeReplies: GitLabNote[];
 }
