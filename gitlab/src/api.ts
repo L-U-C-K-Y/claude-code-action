@@ -41,20 +41,29 @@ export class GitLabAPI {
         ? await this.gitlab.MergeRequestDiscussions.all(this.projectId, context.iid)
         : await this.gitlab.IssueDiscussions.all(this.projectId, context.iid);
 
-      // Check most recent comment for trigger
+      console.log(`Found ${discussions?.length || 0} discussions`);
+
+      // Check all notes across all discussions for trigger
       if (discussions && discussions.length > 0) {
-        const lastDiscussion = discussions[discussions.length - 1];
-        const notes = lastDiscussion.notes || [];
+        // Flatten all notes from all discussions and sort by created_at
+        const allNotes = discussions
+          .flatMap(d => d.notes || [])
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
-        if (notes.length > 0) {
-          const lastNote = notes[notes.length - 1];
-          
-          if (isValidTrigger(lastNote.body, context)) {
+        console.log(`Total notes across all discussions: ${allNotes.length}`);
+        
+        // Check most recent notes (last 5) for trigger
+        const recentNotes = allNotes.slice(0, 5);
+        console.log(`Checking ${recentNotes.length} most recent notes for trigger phrase "${context.triggerPhrase}"`);
+        
+        for (const note of recentNotes) {
+          console.log(`Note from ${note.author?.username}: "${note.body?.substring(0, 50)}..."`);
+          if (note.body && isValidTrigger(note.body, context)) {
             return {
               shouldRun: true,
               reason: 'Found trigger phrase in recent comment',
               triggerType: 'comment',
-              triggerComment: lastNote as unknown as GitLabNote
+              triggerComment: note as unknown as GitLabNote
             };
           }
         }
