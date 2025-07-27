@@ -4,16 +4,18 @@
 #   include:
 #     - remote: 'https://raw.githubusercontent.com/YOUR_USERNAME/claude-code-action/main/gitlab/templates/claude-code.yml'
 #
+# This template provides a single manual job called 'claude' that can be triggered
+# from the GitLab pipeline UI to run Claude on any issue or merge request.
+#
 # Required CI/CD variables:
 #   - CLAUDE_BOT_TOKEN: GitLab Personal Access Token with api and write_repository scopes
 #   - ANTHROPIC_API_KEY: Your Anthropic API key (or CLAUDE_CODE_OAUTH_TOKEN for Claude Pro/Teams)
 #
 # Optional CI/CD variables:
-#   - CLAUDE_ALLOWED_TOOLS: Comma-separated list of allowed tools (default includes MCP comment tool)
-#   - CLAUDE_DISALLOWED_TOOLS: Comma-separated list of disallowed tools (default: WebSearch,WebFetch)
-#   - CLAUDE_ADDITIONAL_MCP_CONFIG: JSON string with additional MCP server configurations
-#
-# Choose the model here: https://docs.anthropic.com/en/docs/about-claude/models/overview
+#   - CLAUDE_MODEL: Model to use (see https://docs.anthropic.com/en/docs/about-claude/models/overview)
+#   - CLAUDE_ALLOWED_TOOLS: Comma-separated list of allowed tools
+#   - CLAUDE_DISALLOWED_TOOLS: Comma-separated list of disallowed tools
+#   - CI_ISSUE_IID or CI_MERGE_REQUEST_IID: Specify which issue/MR to analyze
 
 stages:
   - claude
@@ -63,56 +65,9 @@ variables:
       - claude-*.log
     expire_in: 1 week
 
-# Trigger on MR comments
-claude-on-mr-comment:
-  extends: .claude-base
-  rules:
-    # Trigger when MR is updated (includes new comments)
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: manual
-      allow_failure: true
-  script:
-    - cd /tmp/repo
-    - /tmp/claude-code-action/gitlab/src/main.ts 2>&1 | tee $CI_PROJECT_DIR/claude-mr-${CI_MERGE_REQUEST_IID}.log
-
-# Trigger on issue comments
-claude-on-issue-comment:
-  extends: .claude-base
-  rules:
-    # GitLab doesn't have direct issue comment triggers, so we use commit message
-    - if: '$CI_COMMIT_MESSAGE =~ /\#[0-9]+.*@claude/'
-      when: always
-  script:
-    - cd /tmp/repo
-    # Extract issue number from commit message
-    - export CI_ISSUE_IID=$(echo "$CI_COMMIT_MESSAGE" | grep -oE '#[0-9]+' | head -1 | sed 's/#//')
-    - echo "Detected issue #$CI_ISSUE_IID from commit message"
-    - /tmp/claude-code-action/gitlab/src/main.ts 2>&1 | tee $CI_PROJECT_DIR/claude-issue-${CI_ISSUE_IID}.log
-
-# Trigger on MR assignment
-claude-on-mr-assign:
-  extends: .claude-base
-  rules:
-    # Check if claude-bot is in assignees
-    - if: '$CI_MERGE_REQUEST_ASSIGNEES =~ /claude-bot/'
-      when: always
-  script:
-    - cd /tmp/repo
-    - /tmp/claude-code-action/gitlab/src/main.ts 2>&1 | tee $CI_PROJECT_DIR/claude-mr-${CI_MERGE_REQUEST_IID}.log
-
-# Trigger on label
-claude-on-label:
-  extends: .claude-base
-  rules:
-    # Check for claude label
-    - if: '$CI_MERGE_REQUEST_LABELS =~ /claude/'
-      when: always
-  script:
-    - cd /tmp/repo
-    - /tmp/claude-code-action/gitlab/src/main.ts 2>&1 | tee $CI_PROJECT_DIR/claude-mr-${CI_MERGE_REQUEST_IID}.log
-
-# Manual trigger for testing
-claude-manual:
+# Manual trigger for Claude
+# This single job can be manually triggered to run Claude on any issue or MR
+claude:
   extends: .claude-base
   rules:
     - when: manual
