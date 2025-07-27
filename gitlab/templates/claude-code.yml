@@ -10,6 +10,9 @@
 #
 # Choose the model here: https://docs.anthropic.com/en/docs/about-claude/models/overview
 
+stages:
+  - claude
+
 variables:
   CLAUDE_IMAGE: "node:20-slim"
   CLAUDE_TRIGGER_PHRASE: "@claude"
@@ -19,6 +22,7 @@ variables:
   CLAUDE_MAX_TURNS: "25"
 
 .claude-base:
+  stage: claude
   image: $CLAUDE_IMAGE
   before_script:
     # Install git, bun, and jq
