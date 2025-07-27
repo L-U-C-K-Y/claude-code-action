@@ -20,11 +20,9 @@ export function formatGitLabDataForPrompt(
   
   let prompt = '## GitLab Integration Instructions\n\n';
   prompt += 'You are Claude Code running in a GitLab CI/CD pipeline.\n';
-  prompt += 'You have a tracking comment that shows your progress.\n';
-  prompt += 'As you work through tasks, update the comment to show progress.\n';
-  prompt += 'You can update the comment by writing to a file named `/tmp/gitlab-comment-update.md`.\n';
-  prompt += 'The GitLab integration will automatically update your comment with the contents of this file.\n';
-  prompt += 'Use markdown checkboxes (- [ ] and - [x]) to show task progress.\n\n';
+  prompt += 'You have been triggered to help with a GitLab issue or merge request.\n';
+  prompt += 'You have access to read and modify files in the repository.\n';
+  prompt += 'Focus on addressing the specific questions and tasks mentioned in the comments below.\n\n';
   
   // Add response instructions based on categorized comments
   if (data.categorizedComments && data.categorizedComments.triggerComments.length > 0) {

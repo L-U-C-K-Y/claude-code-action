@@ -23,6 +23,24 @@ import type { GitLabNote } from './types';
 import { validateEnvironmentVariables } from './upstream/validate-env';
 import { runClaude } from './upstream/run-claude';
 
+// Define allowed tools for Claude
+const BASE_ALLOWED_TOOLS = [
+  'Edit',
+  'MultiEdit',
+  'Glob',
+  'Grep',
+  'LS',
+  'Read',
+  'Write',
+  'Bash',
+  'TodoWrite'
+];
+
+const DISALLOWED_TOOLS = [
+  'WebSearch',
+  'WebFetch'
+];
+
 async function main() {
   console.log('🤖 Claude GitLab Integration Starting...');
   
@@ -149,32 +167,33 @@ async function main() {
     process.env.GITLAB_IS_MR = context.isMR ? 'true' : 'false';
     process.env.GITLAB_IID = context.iid.toString();
     
-    // Start comment watcher in background
-    const watcherPath = join(__dirname, 'comment-watcher.ts');
-    console.log(`Starting comment watcher from: ${watcherPath}`);
-    const watcher = execSync(`nohup bun ${watcherPath} > /tmp/comment-watcher.log 2>&1 & echo $!`).toString().trim();
-    console.log(`Started comment watcher (PID: ${watcher})`);
-    console.log('Comment update file will be monitored at: /tmp/gitlab-comment-update.md');
+    // Prepare allowed tools based on environment variables
+    const allowedTools = process.env.CLAUDE_ALLOWED_TOOLS 
+      ? process.env.CLAUDE_ALLOWED_TOOLS.split(',').map(t => t.trim())
+      : BASE_ALLOWED_TOOLS;
+    
+    const disallowedTools = process.env.CLAUDE_DISALLOWED_TOOLS
+      ? process.env.CLAUDE_DISALLOWED_TOOLS.split(',').map(t => t.trim())
+      : DISALLOWED_TOOLS;
     
     // Run Claude
     console.log('Running Claude Code...');
     console.log(`  Model: ${process.env.CLAUDE_MODEL || 'default'}`);
     console.log(`  Max turns: ${process.env.CLAUDE_MAX_TURNS || 'default'}`);
     console.log(`  Timeout: ${process.env.CLAUDE_TIMEOUT_MINUTES || '30'} minutes`);
+    console.log(`  Allowed tools: ${allowedTools.join(', ')}`);
+    console.log(`  Disallowed tools: ${disallowedTools.join(', ')}`);
     startTime = Date.now();
     try {
       const claudeResult = await runClaude(promptFile, {
         model: process.env.CLAUDE_MODEL,
         maxTurns: process.env.CLAUDE_MAX_TURNS,
-        timeoutMinutes: process.env.CLAUDE_TIMEOUT_MINUTES || '30'
+        timeoutMinutes: process.env.CLAUDE_TIMEOUT_MINUTES || '30',
+        allowedTools: allowedTools.join(','),
+        disallowedTools: disallowedTools.join(',')
       });
     } finally {
-      // Stop the comment watcher
-      try {
-        execSync(`kill ${watcher}`);
-      } catch (e) {
-        // Ignore errors if process already stopped
-      }
+      // Cleanup if needed
     }
     
     const duration = Math.round((Date.now() - startTime) / 1000);
