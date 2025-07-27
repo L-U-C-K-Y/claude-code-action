@@ -1,4 +1,3 @@
-import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import type { GitLabContext } from './types';
 
@@ -63,18 +62,8 @@ export function prepareMcpConfig(
     }
   }
 
-  // Create the Claude Code settings directory
-  const homeDir = process.env.HOME || '/root';
-  const settingsDir = join(homeDir, '.config', 'claude-code');
-  mkdirSync(settingsDir, { recursive: true });
-
-  // Write the MCP configuration
-  const configPath = join(settingsDir, 'mcp.json');
-  writeFileSync(configPath, JSON.stringify(mcpConfig, null, 2));
-  
-  console.log(`MCP configuration written to ${configPath}`);
   console.log('MCP servers configured:', Object.keys(mcpConfig.mcpServers).join(', '));
   
-  // Return the config path (though Claude Code CLI will find it automatically)
-  return configPath;
+  // Return the JSON string for Claude's --mcp-config option
+  return JSON.stringify(mcpConfig, null, 2);
 }

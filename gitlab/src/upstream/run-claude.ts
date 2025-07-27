@@ -11,7 +11,7 @@
 import * as core from "./actions-core-shim";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { unlink, writeFile, stat, readFile } from "fs/promises";
+import { unlink, writeFile, stat } from "fs/promises";
 import { createWriteStream } from "fs";
 import { spawn } from "child_process";
 
@@ -174,49 +174,6 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
 
   // log claude args
   console.log(`Claude arguments: ${config.claudeArgs.join(" ")}`);
-
-  // Log MCP config file content for debugging
-  const mcpConfigPath = `${process.env.HOME || '/root'}/.config/claude-code/mcp.json`;
-  try {
-    const mcpConfigContent = await readFile(mcpConfigPath, 'utf8');
-    console.log(`\nMCP Config (${mcpConfigPath}):`);
-    console.log(mcpConfigContent);
-    console.log('---\n');
-  } catch (e) {
-    console.log(`MCP config file not found at ${mcpConfigPath} or error reading: ${e}`);
-  }
-
-  // check mcp status by running claude with claude mcp list
-  console.log('Running claude mcp list...');
-  const mcpList = spawn("claude", ["mcp", "list"], {
-    stdio: ["ignore", "pipe", "pipe"],
-    env: {
-      ...process.env,
-      ...config.env,
-    },
-  });
-
-  // Capture MCP list output
-  let mcpListOutput = '';
-  mcpList.stdout.on("data", (data) => {
-    mcpListOutput += data.toString();
-  });
-
-  mcpList.stderr.on("data", (data) => {
-    console.error(`MCP list stderr: ${data}`);
-  });
-
-  mcpList.on("close", (code) => {
-    console.log(`\nMCP List Output:`);
-    console.log(mcpListOutput || '(empty)');
-    if (code !== 0) {
-      console.log(`MCP list exited with code ${code}`);
-    }
-    console.log('---\n');
-  });
-
-  // Give MCP list a moment to complete
-  await new Promise(resolve => setTimeout(resolve, 1000));
 
   const claudeProcess = spawn("claude", config.claudeArgs, {
     stdio: ["pipe", "pipe", "inherit"],

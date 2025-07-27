@@ -169,7 +169,7 @@ async function main() {
     
     // Prepare MCP configuration
     console.log('Setting up MCP servers...');
-    prepareMcpConfig(context, trackingComment.id.toString());
+    const mcpConfigJson = prepareMcpConfig(context, trackingComment.id.toString());
     
     // Prepare allowed tools based on environment variables
     const allowedTools = process.env.CLAUDE_ALLOWED_TOOLS 
@@ -194,7 +194,8 @@ async function main() {
         maxTurns: process.env.CLAUDE_MAX_TURNS,
         timeoutMinutes: process.env.CLAUDE_TIMEOUT_MINUTES || '30',
         allowedTools: allowedTools.join(','),
-        disallowedTools: disallowedTools.join(',')
+        disallowedTools: disallowedTools.join(','),
+        mcpConfig: mcpConfigJson
       });
     } finally {
       // Cleanup if needed
