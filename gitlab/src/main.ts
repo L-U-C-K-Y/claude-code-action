@@ -55,16 +55,22 @@ async function main() {
     // If we have trigger comments, reply to the first one
     if (triggerCheck.triggerComments.length > 0 && triggerCheck.triggerType === 'comment') {
       const firstTrigger = triggerCheck.triggerComments[0];
+      console.log(`Creating reply to trigger comment in discussion ${firstTrigger.discussionId}`);
+      console.log(`  Trigger note ID: ${firstTrigger.note.id}`);
+      console.log(`  Has existing Claude reply: ${firstTrigger.hasClaudeReply}`);
+      
       trackingComment = await api.createReply({
         projectId: context.projectId,
         isMR: context.isMR,
         iid: context.iid,
         discussionId: firstTrigger.discussionId,
+        noteId: firstTrigger.note.id,
         body: createInitialCommentBody(context)
       });
       console.log(`Created tracking reply in discussion ${firstTrigger.discussionId}: ${trackingComment.id}`);
     } else {
       // Fall back to creating a new comment if no trigger comments
+      console.log('Creating new comment (no trigger comments found)');
       trackingComment = await api.createComment({
         projectId: context.projectId,
         isMR: context.isMR,
@@ -77,6 +83,14 @@ async function main() {
     // Fetch all relevant data
     console.log('Fetching GitLab data...');
     const data = await api.fetchData(context);
+    
+    if (data.categorizedComments) {
+      console.log('Categorized comments:');
+      console.log(`  - Trigger comments: ${data.categorizedComments.triggerComments.length}`);
+      console.log(`  - Context comments: ${data.categorizedComments.contextComments.length}`);
+      console.log(`  - Resolved comments: ${data.categorizedComments.resolvedComments.length}`);
+      console.log(`  - Claude replies: ${data.categorizedComments.claudeReplies.length}`);
+    }
     
     // Setup git configuration
     console.log('Configuring git...');
@@ -136,11 +150,16 @@ async function main() {
     
     // Start comment watcher in background
     const watcherPath = join(__dirname, 'comment-watcher.ts');
+    console.log(`Starting comment watcher from: ${watcherPath}`);
     const watcher = execSync(`nohup bun ${watcherPath} > /tmp/comment-watcher.log 2>&1 & echo $!`).toString().trim();
     console.log(`Started comment watcher (PID: ${watcher})`);
+    console.log('Comment update file will be monitored at: /tmp/gitlab-comment-update.md');
     
     // Run Claude
     console.log('Running Claude Code...');
+    console.log(`  Model: ${process.env.CLAUDE_MODEL || 'default'}`);
+    console.log(`  Max turns: ${process.env.CLAUDE_MAX_TURNS || 'default'}`);
+    console.log(`  Timeout: ${process.env.CLAUDE_TIMEOUT_MINUTES || '30'} minutes`);
     startTime = Date.now();
     try {
       const claudeResult = await runClaude(promptFile, {

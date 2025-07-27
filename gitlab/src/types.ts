@@ -165,6 +165,7 @@ export interface CreateReplyParams {
   isMR: boolean;
   iid: number;
   discussionId: string;
+  noteId: number;
   body: string;
 }
 

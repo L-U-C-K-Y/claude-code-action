@@ -51,10 +51,14 @@ export class GitLabAPI {
       
       // Check all discussions for triggers and existing Claude replies
       if (discussions && discussions.length > 0) {
+        console.log(`Analyzing ${discussions.length} discussions for triggers...`);
+        
         for (const discussion of discussions) {
           const notes = discussion.notes || [];
           let hasClaudeReply = false;
           const triggerNotesInDiscussion: GitLabNote[] = [];
+          
+          console.log(`  Discussion ${discussion.id}: ${notes.length} notes`);
           
           // Check each note in the discussion
           for (const note of notes) {
@@ -62,10 +66,14 @@ export class GitLabAPI {
             if (note.author && typeof note.author === 'object' && 'username' in note.author && 
                 typeof note.author.username === 'string' && claudeBotPattern.test(note.author.username)) {
               hasClaudeReply = true;
+              console.log(`    Found Claude reply by @${note.author.username}`);
             }
             
             // Check if this is a trigger comment
             if (note.body && isValidTrigger(note.body, context)) {
+              const author = note.author && typeof note.author === 'object' && 'username' in note.author 
+                ? note.author.username : 'unknown';
+              console.log(`    Found trigger comment by @${author}: "${note.body.substring(0, 50)}..."`);
               triggerNotesInDiscussion.push(note as unknown as GitLabNote);
             }
           }
@@ -208,6 +216,8 @@ export class GitLabAPI {
       const isResolved = discussion.resolved || false;
       let hasClaudeReply = false;
       
+      console.log(`  Categorizing discussion ${discussion.id} (resolved: ${isResolved}, ${notes.length} notes)`);
+      
       // First pass: identify Claude replies
       for (const note of notes) {
         if (note.author && typeof note.author === 'object' && 'username' in note.author && 
@@ -270,26 +280,31 @@ export class GitLabAPI {
 
   /**
    * Create a reply to an existing discussion
-   * For now, we'll create a new comment as a workaround since the discussion reply API
-   * is not fully exposed in gitbeaker v35
+   * Uses the GitLab Discussions API to add a note to an existing thread
    */
   async createReply(params: CreateReplyParams): Promise<GitLabNote> {
-    // Workaround: Create a new note that references the discussion
-    // This will appear in the same thread in the GitLab UI
-    const replyBody = `> In reply to discussion ${params.discussionId}\n\n${params.body}`;
-    
     if (params.isMR) {
-      return await this.gitlab.MergeRequestNotes.create(
+      const response = await this.gitlab.MergeRequestDiscussions.addNote(
         params.projectId,
         params.iid,
-        replyBody
-      ) as unknown as GitLabNote;
+        params.discussionId,
+        params.noteId,
+        params.body
+      );
+      // Extract the last note from the discussion response
+      const notes = response.notes || [];
+      return notes[notes.length - 1] as unknown as GitLabNote;
     } else {
-      return await this.gitlab.IssueNotes.create(
+      const response = await this.gitlab.IssueDiscussions.addNote(
         params.projectId,
         params.iid,
-        replyBody
-      ) as unknown as GitLabNote;
+        params.discussionId,
+        params.noteId,
+        params.body
+      );
+      // Extract the last note from the discussion response
+      const notes = response.notes || [];
+      return notes[notes.length - 1] as unknown as GitLabNote;
     }
   }
 

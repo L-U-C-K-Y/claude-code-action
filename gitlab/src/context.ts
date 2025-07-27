@@ -84,5 +84,9 @@ export function formatJobUrl(context: GitLabContext): string {
 }
 
 export function isValidTrigger(text: string, context: GitLabContext): boolean {
-  return text.toLowerCase().includes(context.triggerPhrase.toLowerCase());
+  const containsTrigger = text.toLowerCase().includes(context.triggerPhrase.toLowerCase());
+  if (containsTrigger) {
+    console.log(`    Trigger phrase "${context.triggerPhrase}" found in: "${text.substring(0, 100)}..."`);
+  }
+  return containsTrigger;
 }
