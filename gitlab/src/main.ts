@@ -96,6 +96,9 @@ async function main() {
     const promptFile = join(claudeDir, 'prompt.txt');
     writeFileSync(promptFile, promptContent);
 
+    // Log prompt file
+    console.log('Prompt content:', promptContent);
+
     // Validate environment for Claude
     try {
       validateEnvironmentVariables();
@@ -106,7 +109,7 @@ async function main() {
     // Run Claude
     console.log('Running Claude Code...');
     const claudeResult = await runClaude(promptFile, {
-      model: process.env.CLAUDE_MODEL || 'claude-3-sonnet-20240229',
+      model: process.env.CLAUDE_MODEL,
       maxTurns: process.env.CLAUDE_MAX_TURNS,
       timeoutMinutes: process.env.CLAUDE_TIMEOUT_MINUTES || '30'
     });
