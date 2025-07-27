@@ -172,6 +172,18 @@ export async function runClaude(promptPath: string, options: ClaudeOptions) {
     pipeStream.destroy();
   });
 
+  // log claude args
+  console.log(`Claude arguments: ${config.claudeArgs.join(" ")}`);
+
+  // check mcp status by running claude with claude mcp list
+  const mcpList = spawn("claude", ["mcp", "list"], {
+    stdio: ["ignore", "pipe", "inherit"],
+    env: {
+      ...process.env,
+      ...config.env,
+    },
+  });
+
   const claudeProcess = spawn("claude", config.claudeArgs, {
     stdio: ["pipe", "pipe", "inherit"],
     env: {
