@@ -1,0 +1,38 @@
+{
+  "name": "claude-code-gitlab",
+  "version": "1.0.0",
+  "description": "Claude Code integration for GitLab CI/CD",
+  "module": "src/main.ts",
+  "type": "module",
+  "bin": {
+    "claude-code-gitlab": "./src/main.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/main.ts",
+    "test": "bun test"
+  },
+  "keywords": [
+    "claude",
+    "ai",
+    "gitlab",
+    "ci",
+    "code-review",
+    "anthropic"
+  ],
+  "author": "Claude Code GitLab Contributors",
+  "license": "MIT",
+  "dependencies": {
+    "@gitbeaker/node": "^35.8.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "files": [
+    "src",
+    "templates",
+    "README.md"
+  ]
+}

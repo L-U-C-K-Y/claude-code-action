@@ -1,0 +1,15 @@
+# Basic Claude Code GitLab Integration Example
+#
+# This example shows how to add Claude to your GitLab project
+
+# Include the Claude Code template
+include:
+  - remote: 'https://raw.githubusercontent.com/YOUR_USERNAME/claude-code-action/main/gitlab/templates/claude-code.yml'
+
+# You can override any variables from the template
+variables:
+  CLAUDE_TRIGGER_PHRASE: "@ai"  # Use @ai instead of @claude
+  CLAUDE_BRANCH_PREFIX: "ai/"   # Use ai/ prefix for branches
+
+# Your existing CI/CD configuration continues below...
+# Claude jobs will be added automatically by the template
