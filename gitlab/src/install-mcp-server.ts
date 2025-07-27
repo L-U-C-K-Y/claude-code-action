@@ -15,7 +15,7 @@ interface McpConfig {
 export function prepareMcpConfig(
   context: GitLabContext,
   claudeCommentId: string
-): void {
+): string {
   // Create MCP configuration
   const mcpConfig: McpConfig = {
     mcpServers: {
@@ -74,4 +74,7 @@ export function prepareMcpConfig(
   
   console.log(`MCP configuration written to ${configPath}`);
   console.log('MCP servers configured:', Object.keys(mcpConfig.mcpServers).join(', '));
+  
+  // Return the config path (though Claude Code CLI will find it automatically)
+  return configPath;
 }

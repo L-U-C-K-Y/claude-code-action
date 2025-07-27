@@ -19,8 +19,10 @@ export function formatGitLabDataForPrompt(
   let prompt = '## GitLab Integration Instructions\n\n';
   prompt += 'You are Claude Code running in a GitLab CI/CD pipeline.\n';
   prompt += 'You have been triggered to help with a GitLab issue or merge request.\n';
-  prompt += 'You have access to read and modify files in the repository.\n';
-  prompt += 'You can update your progress using the `mcp__gitlab_comment__update_claude_comment` tool.\n';
+  prompt += 'You have access to read and modify files in the repository.\n\n';
+  prompt += '**IMPORTANT**: All communication about your progress must be done using the `mcp__gitlab_comment__update_claude_comment` tool.\n';
+  prompt += 'Do NOT attempt to write to files or use other methods to communicate. Use ONLY the MCP tool to update your comment.\n';
+  prompt += 'This tool allows you to provide real-time updates about what you are doing.\n\n';
   prompt += 'Focus on addressing the specific questions and tasks mentioned in the comments below.\n\n';
   
   // Add response instructions based on categorized comments
