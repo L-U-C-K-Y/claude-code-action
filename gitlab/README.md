@@ -12,23 +12,30 @@ Integrate Claude AI into your GitLab workflow for automated code reviews, test g
 - 💬 **Real-time Updates**: Claude updates comments with progress using MCP
 - 🔧 **Configurable Tools**: Control which tools Claude can use
 - 🎯 **Smart Replies**: Claude replies to existing comment threads
+- 🌿 **Automatic Git Workflow**: Claude creates branches, commits, and can create MRs automatically
+- 🔐 **Secure**: Uses GitLab's native authentication and permissions
 
-## What's New
+## What's New in v1.0.0
 
-### Recent Updates
+### Major Improvements
 
-- **MCP Support**: Claude can now update comments in real-time with progress
-- **Smart Reply System**: Claude replies to existing comment threads instead of creating new comments
-- **Tool Configuration**: Control which tools Claude can access
-- **Better Context**: Claude sees all comments (triggers, context, resolved) for better understanding
-- **Environment Integration**: Uses GitLab CI environment variables automatically
+- **Simplified Template**: Single manual job for all use cases
+- **MCP Support**: Real-time comment updates with progress tracking
+- **Smart Reply System**: Claude replies in existing discussion threads
+- **Duplicate Prevention**: Avoids responding to already-answered questions
+- **Git Push Options**: Automatic MR creation with proper metadata
+- **Better Context**: Shows trigger comments, context, and previous Claude replies
 
-### How It Works
+### Architecture
 
-1. **Trigger Detection**: When someone mentions `@claude`, the integration checks if Claude has already responded
-2. **Smart Replies**: Claude replies within the same discussion thread for better conversation flow
-3. **Progress Updates**: Using MCP, Claude can update its comment with real-time progress
-4. **Append Updates**: Final results are appended to the initial comment with timestamps
+The integration consists of:
+
+1. **GitLab CI Template** (`templates/claude-code.yml`): Single manual job configuration
+2. **Main Runner** (`src/main.ts`): Orchestrates the Claude integration
+3. **GitLab API Wrapper** (`src/api.ts`): Handles all GitLab interactions
+4. **MCP Comment Server** (`src/mcp/gitlab-comment-server.ts`): Enables real-time updates
+5. **Context Parser** (`src/context.ts`): Extracts GitLab CI environment information
+6. **Prompt Formatter** (`src/formatter.ts`): Creates context-rich prompts for Claude
 
 ## Quick Start
 
@@ -50,14 +57,15 @@ In your project settings (Settings → CI/CD → Variables), add:
 
 ```yaml
 include:
-  - remote: 'https://raw.githubusercontent.com/YOUR_USERNAME/claude-code-action/main/gitlab/templates/claude-code.yml'
+  - remote: 'https://raw.githubusercontent.com/anthropics/claude-code-action/main/gitlab/templates/claude-code.yml'
 ```
 
-That's it! Claude will now respond to:
+### 4. Run Claude
 
-- Comments containing `@claude` in MRs or issues
-- Assignment to `claude-bot` user
-- Adding the `claude` label
+1. Add a comment with `@claude` in a merge request or issue
+2. Go to the pipeline that was created
+3. Manually trigger the `claude` job
+4. Claude will analyze the context and respond in the discussion thread
 
 ## Configuration
 
@@ -148,56 +156,98 @@ The integration automatically uses GitLab CI environment variables:
 @claude I'm getting a null pointer exception in the user service. Can you help fix it?
 ```
 
-Claude will:
-1. Analyze the issue
-2. Create a new branch
-3. Implement the fix
-4. Create a merge request
+### Claude's Workflow
 
-## Supported Triggers
+When triggered, Claude will:
 
-1. **Comment Trigger**: Any comment with the trigger phrase
-2. **Assignment Trigger**: Assign `claude-bot` to an MR
-3. **Label Trigger**: Add `claude` label to MR or issue
-4. **Manual Trigger**: Run the `claude-manual` job
+1. **Analyze** the request and context
+2. **Create a new branch** with a descriptive name
+3. **Make changes** to implement the requested fixes or features
+4. **Commit** with conventional commit messages
+5. **Push** with automatic MR creation using git push options
+6. **Update** the comment with the MR link and summary
+
+### Git Push Options
+
+Claude uses GitLab's push options for automatic MR creation:
+
+```bash
+git push -o merge_request.create \
+         -o merge_request.target=main \
+         -o merge_request.title="fix: resolve null pointer exception" \
+         -o merge_request.description="Fixes #123" \
+         -o merge_request.remove_source_branch \
+         origin fix/issue-123-null-pointer
+```
 
 ## Examples
 
 See the [examples](examples/) directory for:
-- [Basic configuration](examples/basic.gitlab-ci.yml)
-- [Advanced configuration](examples/advanced.gitlab-ci.yml)
+- [Basic configuration](examples/basic.gitlab-ci.yml) - Simple setup with custom trigger phrase
+- [Advanced configuration](examples/advanced.gitlab-ci.yml) - Complex setup with conditional triggers
 
-## Development
-
-To use a local development version instead of the published package:
+### Minimal Example
 
 ```yaml
-.claude-base:
-  before_script:
-    # ... other setup ...
-    # Install from local directory instead of npm
-    - npm install -g /builds/$CI_PROJECT_PATH/gitlab
+# .gitlab-ci.yml
+include:
+  - remote: 'https://raw.githubusercontent.com/anthropics/claude-code-action/main/gitlab/templates/claude-code.yml'
+
+# That's all you need! The template provides everything else.
 ```
+
+## How the Integration Works
+
+### 1. Trigger Detection
+- When a pipeline runs, the integration checks for `@claude` mentions
+- It identifies which comments are new vs already answered
+- Prevents duplicate responses by tracking Claude's previous replies
+
+### 2. Context Gathering
+- Fetches the full MR/issue details
+- Categorizes comments into:
+  - **Trigger comments**: New mentions of `@claude`
+  - **Context comments**: Other unresolved discussions
+  - **Claude replies**: Previous responses for continuity
+
+### 3. Claude Execution
+- Creates a comprehensive prompt with all context
+- Enforces git workflow rules via system prompt
+- Provides real-time updates via MCP
+
+### 4. Git Workflow
+- Always creates new branches (never commits to existing ones)
+- Uses conventional commit format
+- Automatically creates MRs with proper metadata
 
 ## Troubleshooting
 
 ### Claude doesn't respond to triggers
 
-1. Check that `CLAUDE_BOT_TOKEN` has correct permissions
-2. Verify the trigger phrase matches your configuration
-3. Check the pipeline logs for errors
+1. **Check the manual job**: Remember, the `claude` job must be manually triggered
+2. **Verify tokens**: Ensure `CLAUDE_BOT_TOKEN` and `ANTHROPIC_API_KEY` are set
+3. **Check permissions**: Bot user needs Developer access or higher
+4. **Review logs**: Check the job logs in `claude-*.log` artifacts
 
 ### Permission errors
 
 Ensure the bot token has:
-
 - Access to the project (Developer role or higher)
 - `api` and `write_repository` scopes
+- Ability to create branches and MRs
 
 ### No changes are pushed
 
-1. Check that the branch protection rules allow the bot to push
-2. Verify git is configured correctly in the pipeline
+1. **Branch protection**: Check rules allow the bot to push
+2. **Git configuration**: Verify git user/email is set correctly
+3. **Token permissions**: Ensure `write_repository` scope is enabled
+
+### Claude responds multiple times
+
+This should not happen with v1.0.0+ due to duplicate prevention. If it does:
+1. Check that you're using the latest template
+2. Verify the integration is checking `hasClaudeReply` properly
+3. Review the logs for trigger detection issues
 
 ## Security
 
@@ -206,9 +256,56 @@ Ensure the bot token has:
 - Regularly rotate access tokens
 - Review Claude's suggestions before merging
 
+## Development
+
+### Running Locally
+
+```bash
+# Install dependencies
+bun install
+
+# Run tests
+bun test
+
+# Run the integration locally (requires GitLab env vars)
+bun run src/main.ts
+```
+
+### Project Structure
+
+```text
+gitlab/
+├── src/
+│   ├── main.ts              # Entry point
+│   ├── api.ts               # GitLab API wrapper
+│   ├── context.ts           # CI environment parser
+│   ├── formatter.ts         # Prompt formatting
+│   ├── install-mcp-server.ts # MCP configuration
+│   └── mcp/
+│       └── gitlab-comment-server.ts # MCP server for updates
+├── templates/
+│   └── claude-code.yml      # GitLab CI template
+├── examples/                # Usage examples
+└── test/                    # Test files
+```
+
+### Key Components
+
+1. **Trigger Detection**: Smart detection prevents duplicate responses
+2. **Comment Threading**: Replies maintain discussion context
+3. **MCP Integration**: Real-time progress updates
+4. **Git Automation**: Enforced workflow with automatic MR creation
+
 ## Contributing
 
 This is part of the [Claude Code Action](https://github.com/anthropics/claude-code-action) project. Contributions welcome!
+
+### Submitting Changes
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes with tests
+4. Submit a pull request
 
 ## License
 

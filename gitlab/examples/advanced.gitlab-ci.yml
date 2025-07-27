@@ -3,11 +3,11 @@
 # This example shows advanced configuration options
 
 include:
-  - remote: 'https://raw.githubusercontent.com/YOUR_USERNAME/claude-code-action/main/gitlab/templates/claude-code.yml'
+  - remote: 'https://raw.githubusercontent.com/anthropics/claude-code-action/main/gitlab/templates/claude-code.yml'
 
 variables:
-  # Use Claude 3 Opus for more complex tasks
-  CLAUDE_MODEL: "claude-3-opus-20240229"
+  # Use Claude 3.5 Sonnet (or any available model)
+  CLAUDE_MODEL: "claude-3-5-sonnet-20241022"
   
   # Increase timeout for large codebases
   CLAUDE_TIMEOUT_MINUTES: "60"
@@ -17,34 +17,49 @@ variables:
   
   # Custom branch prefix
   CLAUDE_BRANCH_PREFIX: "claude-suggestions/"
+  
+  # Restrict tools for security
+  CLAUDE_ALLOWED_TOOLS: "Read,Edit,MultiEdit,Grep,Glob,LS,mcp__gitlab_comment__update_claude_comment"
+  CLAUDE_DISALLOWED_TOOLS: "Bash,Write,WebSearch,WebFetch"
 
-# Override specific Claude jobs if needed
-claude-on-mr-comment:
+# Override the default claude job with custom rules
+claude:
   extends: .claude-base
   rules:
-    # Only trigger for MRs with specific labels
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /needs-ai-review/'
-      when: always
+    # Only allow manual trigger for MRs with specific labels
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ /ai-review/'
+      when: manual
+    # Allow scheduled runs
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: manual
   script:
     - cd /tmp/repo
     - |
       # Add custom pre-processing
-      echo "Running advanced AI review for MR #$CI_MERGE_REQUEST_IID"
+      if [ -n "$CI_MERGE_REQUEST_IID" ]; then
+        echo "Running AI review for MR #$CI_MERGE_REQUEST_IID"
+      else
+        echo "Running scheduled AI review"
+      fi
       
-      # Set custom instructions
-      export CUSTOM_INSTRUCTIONS="Focus on security vulnerabilities and performance issues. Be extra thorough."
-      
-      # Run Claude
-      claude-code-gitlab 2>&1 | tee $CI_PROJECT_DIR/claude-mr-${CI_MERGE_REQUEST_IID}.log
+      # Run the GitLab integration
+      /tmp/claude-code-action/gitlab/src/main.ts 2>&1 | tee $CI_PROJECT_DIR/claude-${CI_JOB_ID}.log
 
-# Add a scheduled AI review job
-scheduled-ai-review:
+# Add a custom AI security audit job
+claude-security-audit:
   extends: .claude-base
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_MERGE_REQUEST_LABELS =~ /security-review/'
+      when: manual
+  variables:
+    # Override to focus on security
+    CLAUDE_SYSTEM_PROMPT: |
+      You are a security auditor. Focus exclusively on:
+      - SQL injection vulnerabilities
+      - XSS vulnerabilities
+      - Authentication/authorization issues
+      - Sensitive data exposure
+      - Dependencies with known vulnerabilities
   script:
     - cd /tmp/repo
-    - |
-      # Review all open MRs
-      echo "Running scheduled AI review of all open MRs"
-      # This would need custom logic to iterate through open MRs
+    - /tmp/claude-code-action/gitlab/src/main.ts 2>&1 | tee $CI_PROJECT_DIR/claude-security-${CI_MERGE_REQUEST_IID}.log

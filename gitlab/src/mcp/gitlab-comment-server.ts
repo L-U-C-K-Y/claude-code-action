@@ -35,13 +35,17 @@ server.tool(
     try {
       const api = new GitLabAPI(GITLAB_TOKEN, GITLAB_API_URL, GITLAB_PROJECT_ID);
       
+      // Add timestamp to the body
+      const timestamp = new Date().toLocaleTimeString();
+      const bodyWithTimestamp = `${body}\n\n_Last updated at ${timestamp}_`;
+      
       // Update the comment using our existing API method
       const result = await api.updateComment({
         projectId: GITLAB_PROJECT_ID,
         isMR: GITLAB_IS_MR,
         iid: parseInt(GITLAB_IID, 10),
         noteId: parseInt(CLAUDE_COMMENT_ID, 10),
-        body: body
+        body: bodyWithTimestamp
       });
 
       return {
