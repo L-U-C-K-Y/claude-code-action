@@ -20,7 +20,7 @@ Integrate Claude AI into your GitLab workflow for automated code reviews, test g
 ### Major Improvements
 
 - **Simplified Template**: Single manual job for all use cases
-- **MCP Support**: Real-time comment updates with progress tracking
+- **MCP Support**: Real-time comment updates with progress tracking and timestamps
 - **Smart Reply System**: Claude replies in existing discussion threads
 - **Duplicate Prevention**: Avoids responding to already-answered questions
 - **Git Push Options**: Automatic MR creation with proper metadata
@@ -77,7 +77,7 @@ You can customize Claude's behavior using CI/CD variables:
 | `ANTHROPIC_API_KEY` | Yes* | Your Anthropic API key | - |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Yes* | Claude Pro/Teams OAuth token | - |
 | `CLAUDE_TRIGGER_PHRASE` | No | Phrase to trigger Claude | `@claude` |
-| `CLAUDE_BRANCH_PREFIX` | No | Prefix for branches Claude creates | `claude/` |
+| `CLAUDE_BRANCH_PREFIX` | No | Not used - branches always use `claude/<context-number>/<type>/<description>` format | - |
 | `CLAUDE_MODEL` | No | Claude model to use | Latest |
 | `CLAUDE_TIMEOUT_MINUTES` | No | Timeout for Claude execution | `30` |
 | `CLAUDE_MAX_TURNS` | No | Maximum conversation turns | `25` |
@@ -177,7 +177,7 @@ git push -o merge_request.create \
          -o merge_request.title="fix: resolve null pointer exception" \
          -o merge_request.description="Fixes #123" \
          -o merge_request.remove_source_branch \
-         origin fix/issue-123-null-pointer
+         origin claude/issue-123/fix/null-pointer
 ```
 
 ## Examples

@@ -9,7 +9,8 @@ include:
 # Optional: Override default settings
 variables:
   CLAUDE_TRIGGER_PHRASE: "@ai"  # Use @ai instead of @claude
-  CLAUDE_BRANCH_PREFIX: "ai/"   # Use ai/ prefix for branches
+  # Note: Branch names always follow the pattern: claude/<context-number>/<type>/<description>
+  # Examples: claude/issue-123/fix/memory-leak, claude/mr-456/feat/new-feature
 
 # Your existing CI/CD configuration continues below...
 # The template adds a single 'claude' job that can be manually triggered

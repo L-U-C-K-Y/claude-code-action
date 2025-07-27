@@ -184,9 +184,9 @@ CRITICAL GIT WORKFLOW REQUIREMENTS - These are mandatory and cannot be bypassed:
    - ALWAYS run 'git branch --show-current' first before any commits
    - Never commit directly to ANY existing branch (including feature branches)
    - Even if you're already on a feature branch (e.g., feature/xyz), create a NEW branch
-   - Branch naming pattern: claude/<type>/<context>-<number>-<description>
-   - For issues: claude/<type>/issue-<number>-<description> (e.g., claude/fix/issue-123-memory-leak)
-   - For MRs: claude/<type>/mr-<number>-<description> (e.g., claude/feat/mr-456-new-feature)
+   - Branch naming pattern: claude/<context-number>/<type>/<description>
+   - For issues: claude/issue-<number>/<type>/<description> (e.g., claude/issue-123/fix/memory-leak)
+   - For MRs: claude/mr-<number>/<type>/<description> (e.g., claude/mr-456/feat/new-api-endpoint)
    - Common types: fix, feat, docs, chore, refactor, test, perf
    - IMPORTANT: Being on a non-default branch does NOT exempt you from creating a new branch
 
@@ -216,7 +216,7 @@ CRITICAL GIT WORKFLOW REQUIREMENTS - These are mandatory and cannot be bypassed:
               -o merge_request.title="fix(gitlab): implement automatic MR creation" \\
               -o merge_request.description="Implements automatic MR creation for !${context.iid}" \\
               -o merge_request.remove_source_branch \\
-              origin claude/fix/mr-${context.iid}-auto-mr
+              origin claude/mr-${context.iid}/fix/automatic-mr-creation
    
    - The MR will be created automatically and the URL will be shown in the push output
    - Include the MR URL from the push output in your final comment

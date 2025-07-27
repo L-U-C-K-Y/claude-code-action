@@ -15,8 +15,8 @@ variables:
   # Allow more conversation turns
   CLAUDE_MAX_TURNS: "50"
   
-  # Custom branch prefix
-  CLAUDE_BRANCH_PREFIX: "claude-suggestions/"
+  # Note: Branch names always follow pattern: claude/<context-number>/<type>/<description>
+  # Examples: claude/issue-123/fix/security-audit, claude/mr-456/feat/api-enhancement
   
   # Restrict tools for security
   CLAUDE_ALLOWED_TOOLS: "Read,Edit,MultiEdit,Grep,Glob,LS,mcp__gitlab_comment__update_claude_comment"
