@@ -123,6 +123,14 @@ async function main() {
 
     // Prepare prompt for Claude
     console.log('Preparing prompt for Claude...');
+    // Pass only NEW trigger comments to avoid responding to already-answered questions
+    if (data.categorizedComments && triggerCheck.triggerComments.length > 0) {
+      const newTriggerIds = new Set(triggerCheck.triggerComments.map(t => t.note.id));
+      data.categorizedComments.triggerComments = data.categorizedComments.triggerComments.filter(
+        comment => newTriggerIds.has(comment.id)
+      );
+      console.log(`Filtered to ${data.categorizedComments.triggerComments.length} NEW trigger comments`);
+    }
     const promptContent = formatGitLabDataForPrompt(data, context);
     
     // Create a temporary directory for Claude
@@ -164,6 +172,9 @@ async function main() {
       ? process.env.CLAUDE_DISALLOWED_TOOLS.split(',').map(t => t.trim())
       : DISALLOWED_TOOLS;
     
+    // Determine the correct target branch for MRs
+    const targetBranch = context.isMR ? (context.sourceBranch || context.defaultBranch) : context.defaultBranch;
+    
     // Prepare system prompt enforcement for git workflow
     const appendSystemPrompt = `
 CRITICAL GIT WORKFLOW REQUIREMENTS - These are mandatory and cannot be bypassed:
@@ -186,8 +197,28 @@ CRITICAL GIT WORKFLOW REQUIREMENTS - These are mandatory and cannot be bypassed:
 
 3. WORKFLOW:
    - Create branch → Make changes → Commit with descriptive message → Push to remote
-   - Always include a merge request URL in your final comment
-   - Format: [Create MR](${context.webUrl}/-/merge_requests/new?merge_request[source_branch]=<branch>&merge_request[target_branch]=<target>)
+   - IMPORTANT: The target branch depends on context:
+     - For issues: target = ${context.defaultBranch}
+     - For MRs: target = ${targetBranch} (the MR's source branch)
+   
+   - For automatic MR creation, use git push options:
+     git push -o merge_request.create \\
+              -o merge_request.target=${targetBranch} \\
+              -o merge_request.title="<type>(<scope>): <description>" \\
+              -o merge_request.description="Fixes #${context.iid}" \\
+              -o merge_request.remove_source_branch \\
+              origin <branch-name>
+   
+   - Example for this MR:
+     git push -o merge_request.create \\
+              -o merge_request.target=${targetBranch} \\
+              -o merge_request.title="fix(gitlab): implement automatic MR creation" \\
+              -o merge_request.description="Implements automatic MR creation for !${context.iid}" \\
+              -o merge_request.remove_source_branch \\
+              origin fix/mr-${context.iid}-auto-mr
+   
+   - The MR will be created automatically and the URL will be shown in the push output
+   - Include the MR URL from the push output in your final comment
 
 4. COMMUNICATION:
    - Use ONLY mcp__gitlab_comment__update_claude_comment tool for all updates
@@ -223,21 +254,22 @@ CRITICAL GIT WORKFLOW REQUIREMENTS - These are mandatory and cannot be bypassed:
     const duration = Math.round((Date.now() - startTime) / 1000);
     durationStr = duration > 60 ? `${Math.floor(duration / 60)}m ${duration % 60}s` : `${duration}s`;
 
-    // Update comment with completion status
-    if (trackingComment) {
-      await api.updateComment({
-        projectId: context.projectId,
-        isMR: context.isMR,
-        iid: context.iid,
-        noteId: trackingComment.id,
-        body: createUpdateSection(
-          'success',
-          'Task completed successfully.',
-          context,
-          durationStr
-        )
-      });
-    }
+    // Don't update with generic success message
+    // Claude will have already updated via MCP with specific details
+    // if (trackingComment) {
+    //   await api.updateComment({
+    //     projectId: context.projectId,
+    //     isMR: context.isMR,
+    //     iid: context.iid,
+    //     noteId: trackingComment.id,
+    //     body: createUpdateSection(
+    //       'success',
+    //       'Task completed successfully.',
+    //       context,
+    //       durationStr
+    //     )
+    //   });
+    // }
 
     console.log('✅ Claude GitLab Integration completed successfully!');
     process.exit(0);

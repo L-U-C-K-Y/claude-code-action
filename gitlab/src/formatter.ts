@@ -156,6 +156,7 @@ export function formatGitLabDataForPrompt(
   prompt += `- **Pipeline:** ${context.pipelineId}\n`;
   prompt += `- **Triggered by:** @${context.triggerUser}\n`;
   prompt += `- **Current branch:** ${context.isMR ? (context.sourceBranch || context.defaultBranch) : context.defaultBranch}\n`;
+  prompt += `- **Target for new MRs:** ${context.isMR ? (context.sourceBranch || context.defaultBranch) : context.defaultBranch}\n`;
 
   return prompt;
 }
