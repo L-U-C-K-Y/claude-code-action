@@ -70,7 +70,7 @@ claude-on-issue-comment:
   extends: .claude-base
   rules:
     # GitLab doesn't have direct issue comment triggers, so we use commit message
-    - if: $CI_COMMIT_MESSAGE =~ /\#[0-9]+.*@claude/
+    - if: '$CI_COMMIT_MESSAGE =~ /\#[0-9]+.*@claude/'
       when: always
   script:
     - cd /tmp/repo
