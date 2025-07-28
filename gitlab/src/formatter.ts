@@ -23,6 +23,14 @@ export function formatGitLabDataForPrompt(
   prompt += '**IMPORTANT**: All communication about your progress must be done using the `mcp__gitlab_comment__update_claude_comment` tool.\n';
   prompt += 'Do NOT attempt to write to files or use other methods to communicate. Use ONLY the MCP tool to update your comment.\n';
   prompt += 'This tool allows you to provide real-time updates about what you are doing.\n\n';
+  
+  if (context.isMR) {
+    prompt += 'For merge requests, you also have access to pipeline analysis tools if asked about CI/CD failures:\n';
+    prompt += '- `mcp__gitlab_pipeline__get_pipeline_status` - Check pipeline status\n';
+    prompt += '- `mcp__gitlab_pipeline__get_pipeline_jobs` - Get job details\n';
+    prompt += '- `mcp__gitlab_pipeline__download_job_log` - Analyze job logs\n\n';
+  }
+  
   prompt += 'Focus on addressing the specific questions and tasks mentioned in the comments below.\n\n';
   
   // Git workflow reference (detailed requirements are in system prompt)

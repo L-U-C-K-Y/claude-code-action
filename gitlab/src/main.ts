@@ -33,7 +33,10 @@ const BASE_ALLOWED_TOOLS = [
   'Write',
   'Bash',
   'TodoWrite',
-  'mcp__gitlab_comment__update_claude_comment'  // MCP tool for updating comments
+  'mcp__gitlab_comment__update_claude_comment',  // MCP tool for updating comments
+  'mcp__gitlab_pipeline__get_pipeline_status',    // MCP tool for pipeline status
+  'mcp__gitlab_pipeline__get_pipeline_jobs',      // MCP tool for job details
+  'mcp__gitlab_pipeline__download_job_log'        // MCP tool for job logs
 ];
 
 const DISALLOWED_TOOLS = [

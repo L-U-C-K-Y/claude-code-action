@@ -14,6 +14,7 @@ Integrate Claude AI into your GitLab workflow for automated code reviews, test g
 - 🎯 **Smart Replies**: Claude replies to existing comment threads
 - 🌿 **Automatic Git Workflow**: Claude creates branches, commits, and can create MRs automatically
 - 🔐 **Secure**: Uses GitLab's native authentication and permissions
+- 🔧 **Pipeline Analysis**: Claude can check and analyze failed pipelines when asked
 
 ## What's New in v1.0.0
 
@@ -25,6 +26,7 @@ Integrate Claude AI into your GitLab workflow for automated code reviews, test g
 - **Duplicate Prevention**: Avoids responding to already-answered questions
 - **Git Push Options**: Automatic MR creation with proper metadata
 - **Better Context**: Shows trigger comments, context, and previous Claude replies
+- **Pipeline MCP Server**: On-demand pipeline analysis without prompt pollution
 
 ### Architecture
 
@@ -34,8 +36,9 @@ The integration consists of:
 2. **Main Runner** (`src/main.ts`): Orchestrates the Claude integration
 3. **GitLab API Wrapper** (`src/api.ts`): Handles all GitLab interactions
 4. **MCP Comment Server** (`src/mcp/gitlab-comment-server.ts`): Enables real-time updates
-5. **Context Parser** (`src/context.ts`): Extracts GitLab CI environment information
-6. **Prompt Formatter** (`src/formatter.ts`): Creates context-rich prompts for Claude
+5. **MCP Pipeline Server** (`src/mcp/gitlab-pipeline-server.ts`): Provides pipeline analysis tools
+6. **Context Parser** (`src/context.ts`): Extracts GitLab CI environment information
+7. **Prompt Formatter** (`src/formatter.ts`): Creates context-rich prompts for Claude
 
 ## Quick Start
 
@@ -155,6 +158,22 @@ The integration automatically uses GitLab CI environment variables:
 ```
 @claude I'm getting a null pointer exception in the user service. Can you help fix it?
 ```
+
+### Pipeline Analysis
+
+```
+@claude why is the pipeline failing?
+```
+
+```
+@claude can you check the CI and fix the failing tests?
+```
+
+When asked about pipelines, Claude will:
+1. Use `mcp__gitlab_pipeline__get_pipeline_status` to check the latest pipeline
+2. Use `mcp__gitlab_pipeline__get_pipeline_jobs` to find failed jobs
+3. Use `mcp__gitlab_pipeline__download_job_log` to analyze error logs
+4. Provide fixes based on the errors found
 
 ### Claude's Workflow
 
@@ -282,7 +301,8 @@ gitlab/
 │   ├── formatter.ts         # Prompt formatting
 │   ├── install-mcp-server.ts # MCP configuration
 │   └── mcp/
-│       └── gitlab-comment-server.ts # MCP server for updates
+│       ├── gitlab-comment-server.ts # MCP server for comment updates
+│       └── gitlab-pipeline-server.ts # MCP server for pipeline analysis
 ├── templates/
 │   └── claude-code.yml      # GitLab CI template
 ├── examples/                # Usage examples

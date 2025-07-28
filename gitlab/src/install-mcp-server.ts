@@ -36,6 +36,24 @@ export function prepareMcpConfig(
     }
   };
 
+  // Add pipeline server for merge requests
+  if (context.isMR) {
+    mcpConfig.mcpServers.gitlab_pipeline = {
+      command: "bun",
+      args: [
+        "run",
+        join(__dirname, "mcp", "gitlab-pipeline-server.ts")
+      ],
+      env: {
+        GITLAB_TOKEN: context.token,
+        GITLAB_PROJECT_ID: context.projectId,
+        GITLAB_API_URL: context.apiUrl,
+        MERGE_REQUEST_IID: context.iid.toString(),
+        RUNNER_TEMP: process.env.RUNNER_TEMP || "/tmp"
+      }
+    };
+  }
+
   // Check if user has additional MCP config
   const additionalMcpConfig = process.env.CLAUDE_ADDITIONAL_MCP_CONFIG;
   if (additionalMcpConfig && additionalMcpConfig.trim()) {
