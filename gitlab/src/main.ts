@@ -227,6 +227,12 @@ CRITICAL GIT WORKFLOW REQUIREMENTS - These are mandatory and cannot be bypassed:
 4. COMMUNICATION:
    - Use ONLY mcp__gitlab_comment__update_claude_comment tool for all updates
    - Never use file writes or other methods to communicate progress
+   - IMPORTANT: At the end of your work, always provide a final update that includes:
+     - Summary of what was accomplished
+     - Any errors or issues encountered (especially important for this new GitLab integration, like permission issues)
+     - Any limitations or things that couldn't be completed
+     - Next steps or recommendations if applicable
+   - If you encounter unexpected behavior or integration issues, document them clearly
 `;
 
     // Run Claude
