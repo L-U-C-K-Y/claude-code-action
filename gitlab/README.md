@@ -239,6 +239,23 @@ include:
 - Uses conventional commit format
 - Automatically creates MRs with proper metadata
 
+## Manual Triggering
+
+The Claude job can be manually triggered from:
+1. **Pipeline page**: Go to CI/CD → Pipelines → Run pipeline → Select `claude` job
+2. **Merge Request**: In the MR pipeline tab, click the play button next to `claude`
+
+### Auto-detection of Merge Requests
+
+When manually triggering Claude:
+- If you're on a branch with an open MR, Claude will automatically detect it
+- No need to specify `CI_MERGE_REQUEST_IID` manually
+- The detection works by querying the GitLab API for MRs from the current branch
+
+To manually specify a target:
+- Add `CI_MERGE_REQUEST_IID` variable when triggering (e.g., value: `123`)
+- Or add `CI_ISSUE_IID` for issues (e.g., value: `456`)
+
 ## Troubleshooting
 
 ### Claude doesn't respond to triggers
@@ -247,6 +264,13 @@ include:
 2. **Verify tokens**: Ensure `CLAUDE_BOT_TOKEN` and `ANTHROPIC_API_KEY` are set
 3. **Check permissions**: Bot user needs Developer access or higher
 4. **Review logs**: Check the job logs in `claude-*.log` artifacts
+
+### "No trigger found" error
+
+If you see "Context: Issue #0" and a 404 error:
+- This means Claude couldn't detect the MR/issue
+- Make sure you have an open MR for the current branch
+- Or manually specify `CI_MERGE_REQUEST_IID` when triggering
 
 ### Permission errors
 

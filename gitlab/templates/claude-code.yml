@@ -73,9 +73,34 @@ claude:
   script:
     - cd /tmp/repo
     - |
+      # Try to detect MR if not provided
+      if [ -z "$CI_MERGE_REQUEST_IID" ] && [ -z "$CI_ISSUE_IID" ] && [ "$CI_COMMIT_REF_NAME" != "main" ] && [ "$CI_COMMIT_REF_NAME" != "master" ]; then
+        echo "Not in a merge request pipeline, looking for MR for branch $CI_COMMIT_REF_NAME"
+        
+        # URL encode the branch name for the API request
+        ENCODED_BRANCH=$(echo -n "$CI_COMMIT_REF_NAME" | jq -sRr @uri)
+        echo "URL-encoded branch name: $ENCODED_BRANCH"
+        
+        # Try the REST API to find associated merge request
+        MR_DATA=$(curl --silent --header "PRIVATE-TOKEN: ${CLAUDE_BOT_TOKEN}" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests?source_branch=${ENCODED_BRANCH}&state=opened")
+        
+        # Parse the response with jq to safely extract MR IID
+        if echo "$MR_DATA" | jq -e 'length > 0' > /dev/null 2>&1; then
+          export CI_MERGE_REQUEST_IID=$(echo "$MR_DATA" | jq -r '.[0].iid')
+          echo "Found merge request IID: $CI_MERGE_REQUEST_IID"
+        else
+          echo "No open merge request found for branch $CI_COMMIT_REF_NAME"
+        fi
+      fi
+      
+      # Provide feedback about what we're running
       if [ -n "$CI_MERGE_REQUEST_IID" ]; then
         echo "Running for MR #$CI_MERGE_REQUEST_IID"
+      elif [ -n "$CI_ISSUE_IID" ]; then
+        echo "Running for Issue #$CI_ISSUE_IID"
       else
-        echo "Running in manual mode - please set CI_ISSUE_IID or CI_MERGE_REQUEST_IID"
+        echo "Running in manual mode - no issue or MR specified"
+        echo "To specify a target, set CI_ISSUE_IID or CI_MERGE_REQUEST_IID when triggering the pipeline"
       fi
     - /tmp/claude-code-action/gitlab/src/main.ts 2>&1 | tee $CI_PROJECT_DIR/claude-manual.log
