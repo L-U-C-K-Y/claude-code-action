@@ -55,46 +55,59 @@ export class GitLabAPI {
         
         for (const discussion of discussions) {
           const notes = discussion.notes || [];
-          let hasClaudeReply = false;
-          const triggerNotesInDiscussion: GitLabNote[] = [];
           
           console.log(`  Discussion ${discussion.id}: ${notes.length} notes`);
           
-          // Check each note in the discussion
-          for (const note of notes) {
-            // Check if this is a Claude bot reply
-            if (note.author && typeof note.author === 'object' && 'username' in note.author && 
-                typeof note.author.username === 'string' && claudeBotPattern.test(note.author.username)) {
-              hasClaudeReply = true;
-              console.log(`    Found Claude reply by @${note.author.username}`);
-            }
+          // Process each note in chronological order
+          for (let i = 0; i < notes.length; i++) {
+            const note = notes[i];
             
             // Check if this is a trigger comment
             if (note.body && isValidTrigger(note.body, context)) {
               const author = note.author && typeof note.author === 'object' && 'username' in note.author 
                 ? note.author.username : 'unknown';
               console.log(`    Found trigger comment by @${author}: "${note.body.substring(0, 50)}..."`);
-              triggerNotesInDiscussion.push(note as unknown as GitLabNote);
+              
+              // Check if there's a Claude reply AFTER this trigger comment
+              let hasClaudeReplyAfter = false;
+              for (let j = i + 1; j < notes.length; j++) {
+                const laterNote = notes[j];
+                if (laterNote.author && typeof laterNote.author === 'object' && 'username' in laterNote.author && 
+                    typeof laterNote.author.username === 'string' && claudeBotPattern.test(laterNote.author.username)) {
+                  hasClaudeReplyAfter = true;
+                  console.log(`    Found Claude reply after this trigger by @${laterNote.author.username}`);
+                  break;
+                }
+              }
+              
+              triggerComments.push({
+                note: note as unknown as GitLabNote,
+                discussionId: discussion.id,
+                hasClaudeReply: hasClaudeReplyAfter
+              });
+              
+              if (!hasClaudeReplyAfter) {
+                console.log(`    No Claude reply found after this trigger`);
+              }
             }
-          }
-          
-          // Add trigger comments from this discussion
-          for (const triggerNote of triggerNotesInDiscussion) {
-            triggerComments.push({
-              note: triggerNote,
-              discussionId: discussion.id,
-              hasClaudeReply
-            });
+            
+            // Also log Claude bot comments for debugging
+            if (note.author && typeof note.author === 'object' && 'username' in note.author && 
+                typeof note.author.username === 'string' && claudeBotPattern.test(note.author.username)) {
+              console.log(`    Found Claude reply by @${note.author.username}`);
+            }
           }
         }
       }
       
       console.log(`Found ${triggerComments.length} trigger comments`);
-      console.log(`Triggers with existing Claude replies: ${triggerComments.filter(t => t.hasClaudeReply).length}`);
-      
-      // Check if we should run
+      const repliedTriggers = triggerComments.filter(t => t.hasClaudeReply);
       const newTriggers = triggerComments.filter(t => !t.hasClaudeReply);
       
+      console.log(`  - Already replied to: ${repliedTriggers.length}`);
+      console.log(`  - New triggers needing response: ${newTriggers.length}`);
+      
+      // Check if we should run
       if (newTriggers.length > 0) {
         return {
           shouldRun: true,
